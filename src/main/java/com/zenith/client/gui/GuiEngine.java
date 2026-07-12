@@ -103,8 +103,8 @@ public final class GuiEngine {
     }
 
     private void renderBrainView(GuiDrawContext ctx, int w, int h) {
-        int panelW = 360;
-        int panelH = 200;
+        int panelW = 380;
+        int panelH = 248;
         float x = w/2f - panelW/2f;
         float y = h/2f - panelH/2f;
         var t = ThemeManager.getInstance().current();
@@ -114,6 +114,7 @@ public final class GuiEngine {
 
         RotationDebugData eyes = ZenithEyes.getInstance().debugData();
         PathDebugData path = ZenithPath.getInstance().debugData();
+        var fail = com.zenith.client.failsafe.FailsafeManager.getInstance().debugData();
         float ty = y + 22;
         ctx.drawString(String.format("Eyes: state=%s tag=%s profile=%s", eyes.state(), eyes.activeTag(), eyes.profileId()),
                 x+8, ty, t.textPrimary, false); ty += 11;
@@ -131,6 +132,16 @@ public final class GuiEngine {
                 path.plannedNodes(), path.executedNodes(), path.totalCost(), path.distanceToTarget()),
                 x+8, ty, t.textSecondary, false); ty += 11;
         ctx.drawString(String.format("  reaction=%s compute=%dms", path.reaction(), path.computeMs()),
+                x+8, ty, t.textSecondary, false); ty += 14;
+
+        String failType = fail.activeType != null ? fail.activeType.displayName() : "—";
+        ctx.drawString(String.format("Failsafe: active=%b sev=%s type=%s frozen=%b paused=%b",
+                fail.active, fail.currentSeverity, failType, fail.inputFrozen, fail.macrosPaused),
+                x+8, ty, fail.active ? new com.zenith.client.engine.render.Color4f(1f,0.4f,0.4f,1f) : t.textPrimary, false); ty += 11;
+        ctx.drawString(String.format("  reason=%s", fail.activeReason.isEmpty() ? "—" : fail.activeReason),
+                x+8, ty, t.textSecondary, false); ty += 11;
+        ctx.drawString(String.format("  for=%dms reaction=%s totalTriggers=%d",
+                fail.activeForMs, fail.reactionState, fail.triggersSinceStartup),
                 x+8, ty, t.textSecondary, false); ty += 14;
 
         ctx.drawString("Press .z debug brain to toggle", x+8, y+panelH-12, t.textSecondary, false);

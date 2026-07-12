@@ -11,6 +11,7 @@ import com.zenith.client.core.protection.BitsProtection;
 import com.zenith.client.engine.eyes.ZenithEyes;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.ZenithPath;
+import com.zenith.client.failsafe.FailsafeManager;
 import com.zenith.client.gui.GuiEngine;
 import com.zenith.client.gui.hud.HudManager;
 import com.zenith.client.keybind.KeybindManager;
@@ -45,7 +46,7 @@ public class ZenithClient implements ClientModInitializer {
         LOGGER.info("  Zenith Client v{} loaded successfully.", ZenithClientInfo.VERSION);
         LOGGER.info("  Target:     Minecraft {}", ZenithClientInfo.MC_VERSION);
         LOGGER.info("  Developer:  {}", ZenithClientInfo.DEVELOPER);
-        LOGGER.info("  Phase:      6 of 20 — World Interaction & GUI Parsing.");
+        LOGGER.info("  Phase:      7 of 20 — Failsafe System.");
         LOGGER.info("==============================================================");
 
         // 1. Config
@@ -74,13 +75,17 @@ public class ZenithClient implements ClientModInitializer {
         ChatPatternEngine.getInstance().init();
         WorldHook.init();
 
+        // Phase 7: Failsafe system — 19 detectors, mistake-simulation reaction engine,
+        // severity ladder (NOTIFY → PAUSE → WARP_HOME → WARP_SPAWN → DISCONNECT).
+        FailsafeManager.getInstance().init();
+
         // Register tick dispatch (must be after event bus init).
         ClientTickDispatcher.register();
 
         // Protection (bits)
         BitsProtection.getInstance().init();
 
-        ZenithChat.getInstance().success("Phase 6 initialised (world adapter, GUI parsing, chat patterns).");
+        ZenithChat.getInstance().success("Phase 7 initialised (failsafe: 19 detectors, reaction engine, severity ladder).");
         LOGGER.info("[Init] Phase 6 up (commands={}, modules={}).",
                 CommandManager.getInstance().getAll().size(),
                 ModuleManager.getInstance().count());

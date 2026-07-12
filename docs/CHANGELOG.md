@@ -207,3 +207,69 @@ roadmap.
 - All engine→world access is now fully decoupled via WorldAdapter. Tests can substitute fake worlds; MC-specific code lives only in MCWorldAdapter/MixinClientConnection.
 - Rule §1 enforced: GUISlotFinder is the only sanctioned way to find item/button slots.
 - Rule §4 enforced: dot-command interception and brand spoofing both live; incoming chat never leaves the client.
+
+## [1.0.0] - Phase 7 — Failsafe System
+
+### Added
+- **FailsafeManager** — central orchestrator. Polls 19 detectors every client tick, aggregates active triggers into a single `FailsafeStrictness` ladder (NONE → NOTIFY → PAUSE → WARP_HOME → WARP_SPAWN → DISCONNECT), auto-escalates per trigger on `escalationStepMs`, applies severity actions (freeze input, halt path/eyes, block bits spending, send `/home`, `/hub`, or disconnect).
+- **FailsafeConfig** (persisted to `config/failsafe.json`): per-detector enabled flag, severity override, sound alert (name/volume/pitch/repeats), toast alert, Discord-alert toggle, escalation step, grace period, auto-reconnect, max auto-severity cap.
+- **19 detectors** (`failsafe/detection/`):
+  - PlayerNearby — entity scan (32b radius) + Hypixel chat proximity.
+  - Ban — `DisconnectedScreen`/TitleScreen detection + BanDetectedEvent (mute/ban).
+  - Limbo — LimboDetectedEvent + empty-world heuristic.
+  - Teleport — per-tick Δpos >3.5h/5v with etherwarp-expected hook.
+  - Velocity — Δv >3 vy or >1.8h while airborne (anti-cheat knockback signature).
+  - ItemSwap — held-stack identity change outside `expectSwap(window)` windows.
+  - Rotation — |yawΔ| >60° / |pitchΔ| >45° vs ZenithEyes expectation (snapback).
+  - WorldChange — WorldChangeEvent subscription.
+  - GUIClose — InventoryCloseEvent outside `expectClose()` windows.
+  - WrongItem — held item name substring mismatch against `setExpected(...)`.
+  - YawFlip — >150° yaw delta in one tick while on-ground.
+  - InventoryFull — all 36 main slots filled.
+  - Lagback — >0.8b horizontal jump while on-ground.
+  - Dismount — rider→not-rider transition outside `expectedDismount()`.
+  - Death — PlayerStateDetector.isDead() + DeathScreen.
+  - LowHealth — ≤6 HP OR hunger 0 → WARP_HOME.
+  - Etherwarp — hook for etherwarp confirmation (future path callback).
+  - PlayerClone — ClientboundRespawnPacket/LoginPacket → teleport signal.
+  - Disconnect — DisconnectEvent + connection-null screen check.
+- **ReactionEngine** (`failsafe/reaction/`): runs short human "oops" sequences after triggers, so a pause looks like a surprised human rather than a bot halt. Sequences built via `ReactionSequenceBuilder` and composed from:
+  - FreezeAction — Gaussian 250–900ms motionless pause.
+  - PanicLookAction — 400ms snappy ±25° jerk to a random direction (FAILSAFE priority rotation).
+  - SlowLookAroundAction — 900ms "legit" profile ±20–45° sweep.
+  - RandomMovementAction — marker for a tiny back-step (no automatic movement while paused).
+  - AccidentalChatAction — opens chat for ~600ms, types nothing, closes without sending.
+  - ChatResponseAction — pre-fills chat with a response (e.g. "brb"), player sends manually.
+  - EtherwarpEscapeAction — queues a 25b etherwarp path in the facing direction as last-resort.
+  - InventoryOpenAction — opens inventory 800ms "which item am I holding?"
+  - MistakeSimulationAction — two small 3–8° twitches then back.
+- **Support classes**:
+  - FailsafeType enum with default severity + auto-escalate flags.
+  - FailsafeStrictness ladder with monotonic ordering and `atLeast(...)`.
+  - FailsafeSoundPlayer — async main-thread sound repeat (configurable alert).
+  - BanActionHandler — `/home`, `/hub`, disconnect with per-action 1.5s cooldown; uses ServerboundChatCommandPacket (26.1).
+  - PlayerNotifier — bounded toast queue (5 toasts, 6s expiry) for the HUD panel.
+  - SafetyStatusMonitor — coloured status dot + de-bounced severity for HUD.
+  - PanicButton — bound to PANIC_BUTTON key; instant halt; held 400ms disconnects.
+  - TabInHandler — pauses if window focus is lost mid-macro; tab-back does NOT auto-resume.
+  - FailsafeDebugData — immutable snapshot consumed by Brain View.
+- **BitsSpendBlocker** gained global `setBlocked(boolean)` atomic flag — failsafe PAUSE and above blocks all inventory clicks unconditionally.
+- **New events**: HeldItemChangeEvent, TeleportEvent, DeathEvent, ScreenChangedEvent (added for future Phase 9+ consumers; detectors already live on existing events).
+- PANIC_BUTTON and EMERGENCY_STOP keybinds wired in FailsafeManager.init().
+- FailsafeManager.tick() added to ClientTickDispatcher.
+- ZenithClient banner & startup message updated to Phase 7.
+
+### Changed
+- `ClientTickDispatcher.onTick` now calls `FailsafeManager.getInstance().tick()` after learner/module/input tick.
+- `ZenithClient.onInitializeClient` calls `FailsafeManager.getInstance().init()` immediately after `WorldHook.init()`.
+- `ConfigManager` registers `failsafe.json` (FailsafeConfigFile) as the 13th persisted config.
+- `BitsSpendBlocker` is now instantiable-style with static atomic gate (no-op for existing preClick callers).
+- Failsafe trigger logging uses WARN level (visible by default); debug lines use SLF4J DEBUG.
+
+### Design
+- Severity is monotonic per trigger; escalation is per-type with configurable step (default 3.5s) and capped by `maxAutoSeverity` (default DISCONNECT).
+- Clearing requires user action — the manager never auto-resumes macros after a trigger.
+- Detectors never move the player, send packets, or toggle modules; they only call `trigger(type, reason)` / `clear(type)` on the manager.
+- ReactionEngine runs only below WARP_HOME severity; once escape actions start, reaction theatrics stop.
+- Rule §4 (server invisibility) preserved — reaction chat actions never auto-send; chat is only opened/pre-filled.
+- Rule §5 (no fixed delays) preserved — freeze durations use Gaussian jitter, action timings are humanised.

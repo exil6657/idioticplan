@@ -49,6 +49,7 @@ public final class CommandManager {
         register(new ExportCmd());
         register(new DashboardCmd());
         register(new LangCmd());
+        register(new FailsafeCmd());
         ZenithClient.LOGGER.info("[CommandManager] {} commands registered", commands.size());
     }
 

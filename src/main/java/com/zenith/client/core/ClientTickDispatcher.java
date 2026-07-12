@@ -7,6 +7,7 @@ import com.zenith.client.core.player.PlayerHealthMonitor;
 import com.zenith.client.core.player.PlayerPositionTracker;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.learning.MovementLearner;
+import com.zenith.client.failsafe.FailsafeManager;
 import com.zenith.client.world.World;
 
 /**
@@ -25,7 +26,7 @@ public final class ClientTickDispatcher {
 
     @SubscribeEvent
     public void onTick(ClientTickEvent event) {
-        // Only update player state when a world is installed.
+        // Player state trackers require an active world.
         if (World.get().playerReady()) {
             PlayerPositionTracker.getInstance().tick();
             PlayerHealthMonitor.getInstance().tick();
@@ -33,5 +34,6 @@ public final class ClientTickDispatcher {
         ModuleManager.getInstance().tickAll();
         InputEngine.getInstance().tick();
         MovementLearner.getInstance().tick();
+        FailsafeManager.getInstance().tick();
     }
 }

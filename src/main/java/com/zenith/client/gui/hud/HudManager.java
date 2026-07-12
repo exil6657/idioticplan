@@ -4,6 +4,7 @@ import com.zenith.client.core.event.annotation.SubscribeEvent;
 import com.zenith.client.core.event.events.RenderHudEvent;
 import com.zenith.client.gui.component.GuiDrawContext;
 import com.zenith.client.gui.hud.panels.ModuleListPanel;
+import com.zenith.client.gui.hud.panels.SafetyPanel;
 import com.zenith.client.gui.hud.panels.WatermarkPanel;
 import com.zenith.client.gui.hud.editor.HudEditor;
 import com.zenith.client.gui.theme.ThemeManager;
@@ -28,6 +29,7 @@ public final class HudManager {
         panels.clear();
         register(new WatermarkPanel());
         register(new ModuleListPanel());
+        register(new SafetyPanel());
         HudLayoutManager.getInstance().init();
         applyLayout();
         if (!initialized) {
@@ -68,6 +70,7 @@ public final class HudManager {
                 p.height = p.getDefaultHeight();
                 if (p instanceof WatermarkPanel) { p.x = 4; p.y = 4; }
                 else if (p instanceof ModuleListPanel) { p.x = w - 8 - p.width; p.y = 16; }
+                else if (p instanceof SafetyPanel) { p.x = 4; p.y = h - 16; }
             }
         }
     }
