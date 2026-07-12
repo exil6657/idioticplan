@@ -171,3 +171,39 @@ roadmap.
 - GuiEngine no longer directly renders watermark/module-list (delegated to HudManager, which owns panels and is layout-aware).
 - WatermarkPanel/ModuleListPanel now extend HudPanel.
 - engine/render/animation removed; canonical animation package is gui/animation.
+
+## [1.0.0] - Phase 6 — World interaction & GUI parsing
+
+### Added
+- **WorldAdapter** (World + MCWorldAdapter + EmptyWorldAdapter): full abstraction over MC block/entity/player state. Engine code no longer imports MC classes — pathfinding/LOS checks go through the adapter.
+- **MCWorldAdapter** live implementation for 26.1 Mojang names: BlockState.isSolid, canOcclude/blocksMotion, ladder check, fluid checks (WATER/LAVA), BlockHitResult raycast via Level.clip(), player position/yaw/onGround/screen title/health/food, SkyBlock detection via scoreboard title.
+- **WorldHook** installs/resets the adapter on world join/disconnect (WorldChangeEvent/DisconnectEvent).
+- **Player trackers**: PlayerPositionTracker (velocity, yaw-vel, stuck detection, blocks travelled), PlayerHealthMonitor (recent-damage window), PlayerStateDetector (moving/sprinting/combat/menu/falling/dead/riding), CooldownTracker (per-id cooldowns), SkillXPTracker (levels by skill name).
+- **ClientTickDispatcher** now drives player trackers.
+- **GUI system** (rule §1: no hardcoded slots):
+  - GUIItemMatcher (display-name-contains/exact/skyblock-id/lore/enchanted/glint/stack-size predicates).
+  - GUIItemStack snapshot (decoupled from MC ItemStack, reads display name, lore, ExtraAttributes.id, enchanted/glint/count).
+  - GUISlotFinder finds first/all matching slots and buttons by label — never by index.
+  - GUIState (title, containerId, rows, slot list, player-inventory start, button labels).
+  - GUIParser reads AbstractContainerMenu each tick, builds GUIItemStacks from ItemStack+NBT, collects Button labels, fires InventoryOpenEvent/InventoryCloseEvent on title change.
+  - GUIClickExecutor wraps gameMode.handleInventoryMouseClick, applies DelayManager humanised delay, **BitsSpendBlocker.preClick** on click, supports left/right/shift/drop.
+  - GUIWaiter condition waiter (poll-based, no Thread.sleep).
+- **ChatPatternEngine** (+ChatPattern) compiles 27 regex patterns matching SkyBlock messages and fires the corresponding domain events: LimboDetected, BanDetected (ban+mute), WorldChange, CoopMessage, RareDrop, ItemCollected, PurseChange, SellComplete, SkillLevelUp, GardenLevelUp, CropMilestone, JacobContestStart, PestSpawn, VisitorArrived, CommunityUpgradeReady, MuseumMilestone, MayorChange, PlayerNearby, MacroStart/Stop, BreakStart/End, FlipComplete, BigFlipComplete, Disconnect/Reconnect, PINAttempt.
+- **MixinClientConnection** updated:
+  - Intercepts both send() overloads for chat packets.
+  - Reads incoming ClientboundSystemChatPacket/ClientboundPlayerChatPacket and fires ChatReceivedEvent → ChatPatternEngine.
+  - Packet cancellation respected.
+- **EtherwarpPathfinder** now uses World.raycastClear for real LOS (replaces the stub); max range 57 blocks, eye-level start → feet target.
+- **PathNavigator** bridge installs the WalkabilityChecker.WorldView from WorldAdapter so A* operates on real MC blocks once in-world.
+- 28 SkyBlock GUI parser stubs (AccessoryBag, Anvil, AuctionHouse, Bank, Bazaar, BrewingStand, Calendar, Collection, CommunityShop/Upgrades, CraftingTable, EnchantmentTable, EnderChest, Forge, Garden, Greenhouse, Kuudra, Minion, Museum, PetMenu, Quests, Rift, Skills, SkyBlockMenu, Storage, Trade, Visitor, Wardrobe) and 8 click-pattern stubs (ApplyEnchant, BuyFromBazaar/NPC, CraftItem, ListOnAH, SearchAH, SellToBazaar/NPC).
+
+### Changed
+- ZenithClient banner updated to Phase 6.
+- ChatPatternEngine registered & initialised.
+- WorldHook.init() called from ZenithClient.
+- HudManager initialised in GuiEngine chain.
+
+### Design
+- All engine→world access is now fully decoupled via WorldAdapter. Tests can substitute fake worlds; MC-specific code lives only in MCWorldAdapter/MixinClientConnection.
+- Rule §1 enforced: GUISlotFinder is the only sanctioned way to find item/button slots.
+- Rule §4 enforced: dot-command interception and brand spoofing both live; incoming chat never leaves the client.

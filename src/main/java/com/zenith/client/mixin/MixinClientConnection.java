@@ -1,26 +1,28 @@
 package com.zenith.client.mixin;
 
+import com.zenith.client.ZenithClient;
 import com.zenith.client.command.CommandInterceptor;
+import com.zenith.client.core.chat.ChatPatternEngine;
 import com.zenith.client.core.event.ZenithEventBus;
+import com.zenith.client.core.event.events.ChatReceivedEvent;
 import com.zenith.client.core.event.events.PacketSendEvent;
 import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ServerboundChatPacket;
+import net.minecraft.network.protocol.game.ClientboundPlayerChatPacket;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Intercepts outgoing/incoming packets.
- *
- * <p>Purposes:
+ * Intercepts outgoing/incoming packets:
  * <ul>
- *   <li>Block dot-command chat packets (".z ...") client-side so they never reach Hypixel
- *       — master rule §4 (server invisibility) and §2 (commands). Implemented via
- *       {@link CommandInterceptor#onOutgoingChat(String)}.</li>
- *   <li>Fire {@link PacketSendEvent} / {@link PacketReceiveEvent} for failsafe,
- *       anticheat simulation, and chat-pattern detectors.</li>
+ *   <li>Outgoing chat packets starting with "." are intercepted client-side (dot-commands).</li>
+ *   <li>Incoming chat packets fire ChatReceivedEvent → ChatPatternEngine.</li>
+ *   <li>All packets fire PacketSendEvent/PacketReceiveEvent for subscribers.</li>
  * </ul>
  */
 @Mixin(Connection.class)
@@ -32,7 +34,6 @@ public abstract class MixinClientConnection {
         ZenithEventBus.getInstance().post(event);
         if (event.isCancelled()) { ci.cancel(); return; }
 
-        // Dot-command interception:
         if (packet instanceof ServerboundChatPacket chat) {
             String message = chat.message();
             if (CommandInterceptor.onOutgoingChat(message)) {
@@ -42,13 +43,41 @@ public abstract class MixinClientConnection {
         }
     }
 
-    // Packet receive is wired at the PacketListener level in Phase 7 (failsafe);
-    // the netty-channel method name varies across MC versions, so we leave this
-    // injection as a no-op target via require=0 to avoid class-load failures if
-    // the exact signature shifts between 26.1 patches.
-    @Inject(method = "handleInboundPacket(Lnet/minecraft/network/ConnectionProtocol;Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/listener/PacketListener;)V",
+    @Inject(method = "send(Lnet/minecraft/network/protocol/Packet;Lio/netty/util/concurrent/GenericFutureListener;)V",
             at = @At("HEAD"), cancellable = true, require = 0)
-    private void zenith$onReceivePacket(CallbackInfo ci) {
-        // Filled in Phase 7 failsafe pipeline.
+    private void zenith$onSendPacketWithListener(Packet<?> packet, Object listener, CallbackInfo ci) {
+        PacketSendEvent event = new PacketSendEvent(packet);
+        ZenithEventBus.getInstance().post(event);
+        if (event.isCancelled()) { ci.cancel(); return; }
+        if (packet instanceof ServerboundChatPacket chat) {
+            if (CommandInterceptor.onOutgoingChat(chat.message())) ci.cancel();
+        }
+    }
+
+    /** Incoming packet: fire PacketReceiveEvent and convert chat packets to ChatReceivedEvent. */
+    @Inject(method = "channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/protocol/Packet;)V",
+            at = @At("HEAD"), cancellable = true, require = 0)
+    private void zenith$onRead(io.netty.channel.ChannelHandlerContext ctx, Packet<?> packet, CallbackInfo ci) {
+        var ev = new com.zenith.client.core.event.events.PacketReceiveEvent(packet);
+        ZenithEventBus.getInstance().post(ev);
+        if (ev.isCancelled()) { ci.cancel(); return; }
+
+        String text = null;
+        int type = 0;
+        if (packet instanceof ClientboundSystemChatPacket sys) {
+            Component c = sys.content();
+            if (c != null) text = c.getString();
+        } else if (packet instanceof ClientboundPlayerChatPacket p) {
+            Component c = p.body().content();
+            if (c != null) text = c.getString();
+            type = 0;
+        }
+        if (text != null) {
+            String raw = text;
+            String plain = raw.replaceAll("§.", "");
+            ChatReceivedEvent chatEvt = new ChatReceivedEvent(plain, raw, type);
+            ZenithEventBus.getInstance().post(chatEvt);
+            if (chatEvt.isCancelled()) ci.cancel();
+        }
     }
 }

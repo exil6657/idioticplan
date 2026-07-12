@@ -4,29 +4,23 @@ import com.zenith.client.engine.path.BlockPos;
 import com.zenith.client.engine.path.PathRequest;
 import com.zenith.client.engine.path.PathResult;
 import com.zenith.client.engine.path.PathResult.Status;
+import com.zenith.client.world.World;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Queue;
-import java.util.Set;
 
 /**
- * Etherwarp pathfinder: builds a path that is mostly walking but may include
- * teleport jumps up to 57 blocks away (Enchanted Etherwarp Transmission maximum
- * with max transmission tuning) through air.
+ * Etherwarp pathfinder: computes a path that may include a single direct
+ * Etherwarp transmission up to 57 blocks (max Enchanted Etherwarp Transmission
+ * tuning distance), falling back to walking when no warp shortcut is viable.
  *
- * <p>Strategy: BFS over "walk segments" connected by etherwarp jumps. For each
- * reachable node we try an etherwarp to any LOS-clear block within 61 blocks.
- * Because etherwarp is expensive in-game (cooldown, mana), we prefer paths
- * with fewer teleports.</p>
+ * <p>Warping requires line-of-sight, a standable destination block, and no solid
+ * blocks in the way (checked via {@link com.zenith.client.world.WorldAdapter#raycastClear}).</p>
  */
 public final class EtherwarpPathfinder {
 
-    private static final int MAX_TELEPORT = 57;
-    private static final double TELEPORT_COST = 25d; // discourage teleports
+    /** Maximum Etherwarp range (blocks). */
+    public static final int MAX_TELEPORT = 57;
+    private static final double TELEPORT_COST = 25d;
 
     private final WalkabilityChecker walkability = new WalkabilityChecker();
     private final AStarPathfinder walk = new AStarPathfinder();
@@ -35,27 +29,21 @@ public final class EtherwarpPathfinder {
         BlockPos startPos = BlockPos.containing(req.fromX, req.fromY, req.fromZ);
         BlockPos goalPos  = BlockPos.containing(req.toX, req.toY, req.toZ);
 
-        // Phase 6 LOS (raycast) check for direct etherwarp from start to goal.
-        // If direct-LOS and within range, take it immediately.
-        if (canTeleport(startPos, goalPos)) {
+        // Direct etherwarp shortcut.
+        if (canTeleport(req.fromX, req.fromY + 1.62, req.fromZ, req.toX, req.toY + 0.2, req.toZ)) {
             PathNode s = new PathNode(startPos);
             PathNode g = new PathNode(goalPos);
-            s.parent = null; g.parent = s; g.stepType = PathNode.StepType.ETHERWARP;
+            g.parent = s; g.stepType = PathNode.StepType.ETHERWARP;
             return new PathResult(Status.FOUND, List.of(s, g), TELEPORT_COST, 0, goalPos);
         }
-
-        // Fallback: delegate to normal A* if no etherwarp shortcuts available in this stub
         return walk.compute(req);
     }
 
-    /**
-     * @return true if there is line-of-sight from 'from' to 'to' within range and
-     *         the destination is a solid standable block.
-     * Phase 6 will add a real VoxelStream raycast; stub uses simple bounds.
-     */
-    private boolean canTeleport(BlockPos from, BlockPos to) {
-        if (from.dist(to) > MAX_TELEPORT) return false;
-        // Real LOS check implemented in Phase 6 world adapter; for now, range check only.
-        return true;
+    /** Check LOS from eyes (y+1.62) to destination feet (y+0.2). */
+    private boolean canTeleport(double x1, double y1, double z1, double x2, double y2, double z2) {
+        double dist = Math.hypot(Math.hypot(x2-x1, z2-z1), y2-y1);
+        if (dist > MAX_TELEPORT) return false;
+        try { return World.get().raycastClear(x1, y1, z1, x2, y2, z2); }
+        catch (Throwable t) { return false; }
     }
 }

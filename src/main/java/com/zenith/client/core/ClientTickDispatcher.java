@@ -3,14 +3,15 @@ package com.zenith.client.core;
 import com.zenith.client.core.event.annotation.SubscribeEvent;
 import com.zenith.client.core.event.events.ClientTickEvent;
 import com.zenith.client.core.module.ModuleManager;
+import com.zenith.client.core.player.PlayerHealthMonitor;
+import com.zenith.client.core.player.PlayerPositionTracker;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.learning.MovementLearner;
+import com.zenith.client.world.World;
 
 /**
- * Central tick subscriber that dispatches the ClientTickEvent to subsystems.
- *
- * <p>Subscribed to the event bus during ZenithClient init. Keeps per-tick wiring
- * in one place instead of scattered across the mod entrypoint.</p>
+ * Central tick subscriber: dispatches the ClientTickEvent to every subsystem that
+ * needs per-tick updates. Subscribed once during init.
  */
 public final class ClientTickDispatcher {
 
@@ -24,6 +25,11 @@ public final class ClientTickDispatcher {
 
     @SubscribeEvent
     public void onTick(ClientTickEvent event) {
+        // Only update player state when a world is installed.
+        if (World.get().playerReady()) {
+            PlayerPositionTracker.getInstance().tick();
+            PlayerHealthMonitor.getInstance().tick();
+        }
         ModuleManager.getInstance().tickAll();
         InputEngine.getInstance().tick();
         MovementLearner.getInstance().tick();

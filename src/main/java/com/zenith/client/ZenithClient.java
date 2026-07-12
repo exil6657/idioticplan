@@ -3,6 +3,7 @@ package com.zenith.client;
 import com.zenith.client.config.ConfigManager;
 import com.zenith.client.command.CommandManager;
 import com.zenith.client.core.ClientTickDispatcher;
+import com.zenith.client.core.chat.ChatPatternEngine;
 import com.zenith.client.core.chat.ZenithChat;
 import com.zenith.client.core.event.ZenithEventBus;
 import com.zenith.client.core.module.ModuleManager;
@@ -11,7 +12,9 @@ import com.zenith.client.engine.eyes.ZenithEyes;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.ZenithPath;
 import com.zenith.client.gui.GuiEngine;
+import com.zenith.client.gui.hud.HudManager;
 import com.zenith.client.keybind.KeybindManager;
+import com.zenith.client.world.WorldHook;
 import net.fabricmc.api.ClientModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +45,7 @@ public class ZenithClient implements ClientModInitializer {
         LOGGER.info("  Zenith Client v{} loaded successfully.", ZenithClientInfo.VERSION);
         LOGGER.info("  Target:     Minecraft {}", ZenithClientInfo.MC_VERSION);
         LOGGER.info("  Developer:  {}", ZenithClientInfo.DEVELOPER);
-        LOGGER.info("  Phase:      5 of 20 — HUD System & Brain View.");
+        LOGGER.info("  Phase:      6 of 20 — World Interaction & GUI Parsing.");
         LOGGER.info("==============================================================");
 
         // 1. Config
@@ -65,6 +68,11 @@ public class ZenithClient implements ClientModInitializer {
 
         // Phase 4: GUI engine (animation, component framework, dashboard screen).
         GuiEngine.getInstance().init();
+        HudManager.getInstance().init();
+
+        // Phase 6: Chat pattern engine fires events from incoming chat; world adapter.
+        ChatPatternEngine.getInstance().init();
+        WorldHook.init();
 
         // Register tick dispatch (must be after event bus init).
         ClientTickDispatcher.register();
@@ -72,8 +80,8 @@ public class ZenithClient implements ClientModInitializer {
         // Protection (bits)
         BitsProtection.getInstance().init();
 
-        ZenithChat.getInstance().success("Phase 4 initialised (mixins live + GUI engine).");
-        LOGGER.info("[Init] Phase 4 up (commands={}, modules={}).",
+        ZenithChat.getInstance().success("Phase 6 initialised (world adapter, GUI parsing, chat patterns).");
+        LOGGER.info("[Init] Phase 6 up (commands={}, modules={}).",
                 CommandManager.getInstance().getAll().size(),
                 ModuleManager.getInstance().count());
     }
