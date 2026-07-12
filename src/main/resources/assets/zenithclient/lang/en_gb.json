@@ -1,0 +1,16 @@
+{
+  "zenith.prefix": "Zenith \u00bb",
+  "zenith.loaded": "Client loaded (v%s) \u2014 type .zhelp for commands",
+  "zenith.debug.enabled": "Debug mode enabled (verbosity: %s)",
+  "zenith.failsafe.triggered": "\u26a0 Failsafe triggered: %s \u2014 taking evasive action",
+  "zenith.failsafe.resolved": "\u2713 Failsafe resolved \u2014 resuming in %s seconds",
+  "zenith.panic.activated": "Emergency stop activated",
+  "zenith.macro.starting": "%s macro starting...",
+  "zenith.macro.started": "%s macro started successfully",
+  "zenith.macro.stopped": "%s macro stopped",
+  "zenith.macro.error": "%s macro error: %s",
+  "zenith.autopilot.enabled.closed": "Autopilot enabled (Closed System mode)",
+  "zenith.autopilot.enabled.full": "Autopilot enabled (Full Auto mode)",
+  "zenith.theme.changed": "Theme changed to: %s",
+  "zenith.language.set": "Language set to: %s"
+}

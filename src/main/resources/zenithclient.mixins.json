@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.zenith.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "MixinMinecraft",
+    "MixinClientConnection",
+    "MixinGameRenderer",
+    "MixinMouse",
+    "MixinKeyboardHandler",
+    "MixinGui",
+    "MixinScreen",
+    "MixinLevelRenderer",
+    "MixinEntityRenderer",
+    "MixinOptions",
+    "MixinCamera",
+    "MixinPlayerRenderer",
+    "accessor.MouseAccessor",
+    "accessor.OptionsAccessor",
+    "accessor.CameraAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

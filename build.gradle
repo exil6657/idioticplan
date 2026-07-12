@@ -1,0 +1,127 @@
+// ==========================================================================
+// Zenith Client — build.gradle
+// Target:    Minecraft 26.1.2 (Fabric)
+// Toolchain: Fabric Loom 1.15 (unobfuscated mode), Gradle 9.4.0,
+//            Java 25 for the Gradle JVM, Java 21 for the source/target.
+//
+// R001 — MC 26.1.2 Fabric Build Configuration: COMPLETE
+//   Research sources:
+//     https://fabricmc.net/2026/03/14/261.html   (Fabric 26.1 release notes)
+//     https://modrinth.com/mod/fabric-api/version/0.145.4+26.1.2
+//   Key changes vs pre-26.1 mods:
+//     - Loom 1.15 runs in UN-OBFUSCATED mode — no mappings line, no remapJar.
+//     - Use plain `implementation`/`compileOnly` (not `modImplementation`/`modCompileOnly`).
+//     - Fabric's dependency ID is `fabric-api` (the deprecated bare `fabric` ID was removed).
+//     - Yarn is no longer supported; Mojang official names are used directly.
+//     - Java 25 minimum for the Gradle JVM; mod code targets Java 21 class files.
+//     - fabric-api 0.145.4+26.1.2, loader 0.18.4+ (0.18.9 recommended).
+//     - HudRenderCallback removed in favour of HudElementRegistry (Phase 5 to update).
+// ==========================================================================
+
+plugins {
+    id 'java'
+    id 'fabric-loom' version "${loom_version}"
+}
+
+version = "${mod_version}"
+group = "${maven_group}"
+base {
+    archivesName = "${archives_base_name}"
+}
+
+repositories {
+    mavenCentral()
+    maven { url 'https://maven.fabricmc.net/' }
+    maven { url 'https://maven.dv8tion.net/releases' }   // JDA
+}
+
+dependencies {
+    // ---- Minecraft / Fabric (unobfuscated Loom) ----
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    // No mappings line: 26.1 ships unobfuscated, Mojang names are the baseline.
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+
+    // ---- Jar-in-jar bundled libraries ----
+    // JDA 5.2.1 — Discord bot integration (inlined into the mod JAR so users
+    // don't need to install it separately).
+    implementation("net.dv8tion:JDA:${jda_version}") {
+        transitive = false   // we only need the core JDA jar at Phase 20
+    }
+    include "net.dv8tion:JDA:${jda_version}"
+
+    // Gson 2.10.1 — JSON serialization (also bundled jar-in-jar to avoid any
+    // classpath conflicts with MC's relocated Gson version).
+    implementation "com.google.code.gson:gson:${gson_version}"
+    include "com.google.code.gson:gson:${gson_version}"
+
+    // SLF4J — MC ships its own binding; we depend only on the API at compile time.
+    compileOnly "org.slf4j:slf4j-api:${slf4j_version}"
+}
+
+// --------------------------------------------------------------------
+// Java compilation
+//   Source/target = Java 21 (per master spec — gives us pattern matching,
+//   records, virtual threads preview where permitted).
+//   Gradle JVM   = Java 25 (required by Loom 1.15 — configured by user in
+//   gradle.properties or IDE Gradle settings).
+// --------------------------------------------------------------------
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+    options.compilerArgs += ['-Xlint:-unchecked', '-Xlint:-deprecation']
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// --------------------------------------------------------------------
+// Resource processing — substitute Gradle properties into fabric.mod.json
+// --------------------------------------------------------------------
+processResources {
+    inputs.property 'version',         project.version
+    inputs.property 'loader_version',  loader_version
+    inputs.property 'minecraft_version', minecraft_version
+    inputs.property 'fabric_version',  fabric_version
+
+    filesMatching('fabric.mod.json') {
+        expand(
+            'version':          project.version,
+            'loader_version':   loader_version,
+            'minecraft_version': minecraft_version,
+            'fabric_version':   fabric_version
+        )
+    }
+}
+
+// --------------------------------------------------------------------
+// Jar task (plain `jar` — 26.1 Loom does not use remapJar)
+// --------------------------------------------------------------------
+tasks.named('jar', Jar).configure {
+    from('LICENSE') {
+        rename { "${it}_${archives_base_name}" }
+    }
+    manifest {
+        attributes(
+            'Implementation-Title':   archives_base_name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor':  'Exil',
+            'Built-JDK':              System.getProperty('java.version'),
+            'Built-Gradle':           gradle.gradleVersion
+        )
+    }
+}
+
+// --------------------------------------------------------------------
+// Phase 20: Release build with ProGuard obfuscation.
+// Left unconfigured for now — added in final polish phase per Part 5 §3
+// of the master document using proguard-rules.pro + proguard-dictionary.txt.
+// --------------------------------------------------------------------
