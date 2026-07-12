@@ -1,5 +1,6 @@
 package com.zenith.client;
 
+import com.zenith.client.api.ApiManager;
 import com.zenith.client.config.ConfigManager;
 import com.zenith.client.command.CommandManager;
 import com.zenith.client.core.ClientTickDispatcher;
@@ -46,7 +47,7 @@ public class ZenithClient implements ClientModInitializer {
         LOGGER.info("  Zenith Client v{} loaded successfully.", ZenithClientInfo.VERSION);
         LOGGER.info("  Target:     Minecraft {}", ZenithClientInfo.MC_VERSION);
         LOGGER.info("  Developer:  {}", ZenithClientInfo.DEVELOPER);
-        LOGGER.info("  Phase:      7 of 20 — Failsafe System.");
+        LOGGER.info("  Phase:      8 of 20 — API / Data layer (NEU + Coflnet + Moulberry).");
         LOGGER.info("==============================================================");
 
         // 1. Config
@@ -79,13 +80,17 @@ public class ZenithClient implements ClientModInitializer {
         // severity ladder (NOTIFY → PAUSE → WARP_HOME → WARP_SPAWN → DISCONNECT).
         FailsafeManager.getInstance().init();
 
+        // Phase 8: API/data layer — NEU items/recipes/constants, Moulberry lowestbin,
+        // Coflnet bazaar/mayor/flips, rate limits, scrapers, wiki, update checker.
+        ApiManager.getInstance().init();
+
         // Register tick dispatch (must be after event bus init).
         ClientTickDispatcher.register();
 
         // Protection (bits)
         BitsProtection.getInstance().init();
 
-        ZenithChat.getInstance().success("Phase 7 initialised (failsafe: 19 detectors, reaction engine, severity ladder).");
+        ZenithChat.getInstance().success("Phase 8 initialised (API/data layer: NEU, Moulberry, Coflnet, scrapers, wiki).");
         LOGGER.info("[Init] Phase 6 up (commands={}, modules={}).",
                 CommandManager.getInstance().getAll().size(),
                 ModuleManager.getInstance().count());

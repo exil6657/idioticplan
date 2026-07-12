@@ -273,3 +273,42 @@ roadmap.
 - ReactionEngine runs only below WARP_HOME severity; once escape actions start, reaction theatrics stop.
 - Rule §4 (server invisibility) preserved — reaction chat actions never auto-send; chat is only opened/pre-filled.
 - Rule §5 (no fixed delays) preserved — freeze durations use Gaussian jitter, action timings are humanised.
+
+## [1.0.0] - Phase 8 — API / Data Layer
+
+### Added
+- **ApiManager** — orchestrates all external data integrations; boots wiki, scrapers, NEU fetch, Moulberry poller, Coflnet endpoints, update checker.
+- **HttpClient** (`api/HttpClient.java`) — JDK 11 `java.net.http` wrapper with configurable UA, 8 s timeout, async GET, UTF-8 query builder, runs on `ThreadUtils.ioPool()`.
+- **RateLimiter** + **RateLimitConfig** (`api/ratelimit/`) — token-bucket per endpoint (coflnet.flips 1/1.5s, coflnet.prices 2/s, neu.repo 1/min, moulberry.bin 1/10s, update.check 1/h).
+- **Caches** (`api/cache/`):
+  - DataCache — generic in-memory + disk JSON cache with TTL and async persist under `config/zenith/cache/<namespace>/`.
+  - ItemDatabaseCache — NEU items.json (id→name/tier/npc-sell/stats).
+  - BINCache — concurrent map of skyblock id → lowest BIN price.
+  - BazaarCache — product id → (buyPrice, sellPrice, buyVolume, sellVolume, updatedMs).
+  - RecipeCache — output id → list of Recipe {outputId, outputCount, ingredients[], type}.
+- **NEU client** (`api/neu/`):
+  - NEURepoClient — raw.githubusercontent.com fetch, rate-limited.
+  - NEUItemFetcher — async items.json load → ItemDatabaseCache.
+  - NEURecipeFetcher — async recipes.json parse → RecipeCache.
+  - NEUConstantsFetcher — constants.json load into JsonObject for later phases.
+- **Moulberry client** (`api/moulberry/`):
+  - MoulberryClient — lowestbin.json GET.
+  - LowestBINFetcher — start() schedules every 5 minutes; populates BINCache.
+- **Coflnet client** (`api/coflnet/`):
+  - CoflnetClient — base URL, path routing, rate-limit bucket selection.
+  - CoflnetBazaarAPI — /api/v1/bazaar polled every 45 s → BazaarCache.
+  - CoflnetAuctionAPI — active auctions lookup by item id; updates BINCache on cheapest BIN.
+  - CoflnetPriceHistoryAPI — 7-day price history (avg/min/max/volume).
+  - CoflnetMayorAPI — /api/v1/timer polled every 60 s; fires MayorChangeEvent on change.
+  - CoflnetFlipAPI — /api/v1/flips polled every 3 s (Phase 9 will consume).
+- **Scrapers** (`api/scraper/`) — ActionBar/Chat/Scoreboard/TabList/AuctionGUI/BazaarGUI/CollectionGUI/InventoryGUIScraper placeholders registered on the event bus; macro phases fill in parsing.
+- **Wiki** (`api/wiki/`) — WikiDataManager boot stub + 14 Wiki* table stubs (Collections/Dungeons/Enchantments/Events/FarmDesigns/Locations/Minions/Mobs/NPCLocations/Pets/Recipes/ShopPrices/SkillTables/Slayers), lazy-loaded from NEU constants by later phases.
+- **Update checker** (`api/update/UpdateChecker` + `UpdateConfig`) — GitHub releases/latest every 6 h, posts toast when a new tag is found.
+- FailsafeCmd now accepts `test <TYPE>` (added in Phase 7, documented here).
+- Brain view extended to show failsafe state (added in Phase 7, documented here).
+- SafetyPanel (HUD) live — bottom-left dot shows severity colour with label.
+
+### Changed
+- BitsSpendBlocker gained atomic global setBlocked/clear for the failsafe manager.
+- HudManager registers SafetyPanel by default (bottom-left).
+- Phase banner updated to Phase 8.
