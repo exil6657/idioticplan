@@ -1,129 +1,130 @@
 # HUD Tracker Panels
 
-Zenith's in-game HUD is a set of draggable, theme-aware panels (see
-`HudPanel` + `HudEditor`). The macro and flipper tracker panels mirror the
-three reference screenshots provided by the user:
+Zenith's in-game HUD is a set of draggable, theme-aware panels (see `HudPanel`
++ `HudEditor`). The user provided three screenshots of **other clients'** HUDs
+as design REFERENCES for features to include — they are NOT a literal spec to
+reproduce panel-for-panel:
 
----
+| Reference | Style elements borrowed |
+|-----------|--------------------------|
+| Farming panel (watermelon icon) | Header with **current-activity icon** (dynamic — swaps to match the active macro: 🍉 for watermelon/melon, 🎃 for pumpkin, 🥔 for potato, ⛏ for mining, 🎣 for fishing, etc.), activity counter, rates (crops/min, blocks/s, XP/h, coins/h with source label), skill level + progress bar, Yaw/Pitch debug lines at bottom. |
+| Ghost Profit Tracker (combat) | Itemised drop list with counts × coin value, right-aligned coloured coin column, Kills/Combo/XP Gained/Avg Magic Find footer, Session Profit / Profit Per Hour / Total Uptime always visible. |
+| Pumpkin inventory / skills / Jacob's Contest | Session block with average BPS and counter (e.g. Pests), Inventory Worth (NPC) top-items breakdown, Skills block (Roman + numeric level + progress %), Jacob's Contest block that only appears while a contest is active. |
 
-## 1. Farming / skill stats panel (watermelon-style)
+## Panel suite
 
-```
--Farming ──────────────────────────────────────────────────
-  🍉  Cultivating:   5,301,761
-      158,507,073 until ranked!
-  🍉  Crops/min:     73,480
-  🧈  Coins/h:       216,905,600 (Bazaar)
-  🍉  Blocks/s:      19.8
-  🏮  Farming Level:
-      ▮▮▮▮▮▮▮▮▯▯▯▯▯▯▯▯▯▯▯▯ 4.14%
-  🥬  Farming XP/h:  798,336
-  Yaw:   89.98
-  Pitch: -58.98
-```
+| Panel id | Purpose | Populated by |
+|----------|---------|--------------|
+| `FarmingStatsPanel` | Active-macro stats header; icon swaps to whatever the user is macroing. Counters / rates / XP/h / skill bar / Yaw·Pitch. | Farming macro (Phase 13) + skill tracker + ZenithEyes debug. |
+| `MiningStatsPanel` | Mining-specific rates (blocks/s, powder/h, gemstones/h, mining XP/h, Yaw/Pitch, route progress). | Mining macro (Phase 14). |
+| `CombatStatsPanel` (GhostProfitPanel) | Drop list, Kills/Combo/XP/MF, Session Profit, P/H, Uptime. Works for ghosts, endermen, dragons, etc. | Combat macro (Phase 15). |
+| `FishingStatsPanel` | Catches/h, sea creature kills, loot list, XP/h, bobber Yaw/Pitch. | Fishing macro (Phase 16). |
+| `SessionPanel` | Inventory Worth (NPC) top stacks + purse, Earned/h, Total profit, active skill level/progress, Jacob Contest block (farming only). | Cross-macro session stats + Jacob tracker. |
+| `ProfitPanel` | Compact single-line profit summary (flips + macros combined). | ProfitTracker. |
+| `SafetyPanel` | Failsafe dot + label (green/amber/orange/red). | FailsafeManager. |
+| `ActiveFlipsPanel` | Currently listed/buying flips (AH + Bazaar). | FlipEngine. |
 
-- Source data: `FarmingMacroStats`, `CounterSession`, `XPTracker`,
-  `ZenithEyes` rotation debug.
-- `Cultivating` counter reads the player's SkyBlock stat (chat + scoreboard),
-  with "until ranked!" gap to next medal threshold.
-- `Blocks/s` is instantaneous + smoothed (EMA 5 s).
-- `Coins/h` pulls from `ProfitTracker` (can show "(Bazaar)" or "(NPC)" source).
-- XP bar is 20-char width, filled by (lvlProgress %).
-- Yaw/Pitch appended at the bottom in orange to mirror the user's reference.
-
-## 2. Ghost / combat profit panel
+## Farming / active-macro panel layout (dynamic icon)
 
 ```
-Ghost Profit Tracker
-  98×    Sorrow                   26.2M
-  66×    Plasma                   16.5M
-  4,869× Dropped Coins             9M
-  480×   Ghost Shard              6.4M
-  13,280×♻ Flawed Sapphire Gem    4.9M
+-{icon} {Activity} ────────────────────────────
+  {icon} {Counter label}:  {value}
+        {next-milestone text}
+  {coin icon} Coins/h:     {value} ({source})
+  {icon} Blocks/s:         {value}
+  {lantern icon} {Skill} Level:
+        ▮▮▮▮▮▮▮▮▯▯▯ {percent}%
+  {xp icon} {Skill} XP/h:  {value}
+  Yaw:   {yaw}
+  Pitch: {pitch}
+```
+
+- The `{icon}` next to the title swaps to match the current macro (🍉 melon,
+  🎃 pumpkin, 🥔 potato, 🥕 carrot, 🌾 wheat, 🍄 mushroom, 🍫 cocoa, 🌵 cactus,
+  ⛏ mining, 🎣 fishing, 🗡 combat, etc.) — NOT hard-coded to watermelon.
+- `{source}` on the Coins/h line shows where the calculation is coming from
+  (Bazaar sell, NPC sell, AH BIN, etc.).
+- Yaw/Pitch debug lines at the bottom are orange and always shown (debug aid
+  for rotation tuning).
+- Skill bar is drawn with 20 filled/empty block chars, width-relative to the
+  panel.
+
+## Combat / profit panel layout
+
+```
+{title} (e.g. "Ghost Profit Tracker")
+  {count}×  {drop name}         {value colour coded}
   ...
-  2×     Ghostly Boots           248k
-  Kills: 0
-  Ghosts Since Sorrow: 0
-  Max Kill Combo: 3,497
-  Combat XP Gained: 4,421,594
-  Average Magic Find: 439.4
-  Bestiary Kills: MAX
-  Session Profit: 81,965,994 coins
-  Profit Per Hour: 54,706,666 coins
-  Total Uptime: 1h 29m 53s
+  Kills: {kills}
+  Kills Since {rare} Drop: {n}
+  Max Kill Combo: {combo}
+  {skill} XP Gained: {xp}
+  Average Magic Find: {mf}
+  Bestiary Kills: {n or MAX}
+  Session Profit: {n} coins
+  Profit Per Hour: {n} coins
+  Total Uptime: {h}h{m}m{s}s
 ```
 
-- Generic "itemised drop list" panel — works for any macro (ghosts,
-  enderman, dragon, mining powder, etc.).
-- Drops sorted by value desc; right-aligned coloured coin column.
-- Drop counts with thousands separators.
-- Footer always shows `Session Profit`, `Profit Per Hour`, `Total Uptime`.
-- `Kills / Combo / XP Gained / Avg Magic Find` fed from combat tracker.
+- Drops are sorted by value desc; coin column is right-aligned with colour
+  (white ≤ 1M, green > 1M, gold > 10M, red > 100M).
+- Count column uses thousands separators.
+- Footer always shows Session Profit, P/H, Uptime.
 
-## 3. Session / inventory / skill / contest panel (pumpkin-style)
+## Session panel layout
 
 ```
-Pumpkin (2h12m)
-Farming
-Average BPS: 19,66
-Pests: 0
-────────────────────────────────────
-Inventory Worth (NPC)
-  🟨 Polished Pumpkin:           $13M
-  🟫 Enchanted Pumpkin:         $5.9M
-  🍄 Enchanted Red Mushroom:    $4.6M
-  🎃 Squash:                    $4.4M
-  ⚜  Others:                    $13M
-  👛 Purse:                     $16M
-Inventory Worth: $37M
-Earned Per Hour: $15M
-Total Profit:    $53M
-────────────────────────────────────
+{Macro name} ({uptime})
+{Skill family}
+Average BPS: {bps}
+Pests: {n}              (farming only; hidden for other skills)
+────────────────────────
+Inventory Worth ({source})
+  {top items...}
+  👛 Purse: ${n}
+Inventory Worth: ${n}
+Earned Per Hour: ${n}
+Total Profit:    ${n}
+────────────────────────
 Skills
-  Farming Level: LII (52)
-  Progress:      100,00%
-────────────────────────────────────
-Jacob's Contest
-  🥈 Silver
-  Ends in 10:54
-  Total Score: 53k
-  Total 'til next rank: 44k
+  {Skill} Level: {roman} ({numeric})
+  Progress:      {percent}%
+────────────────────────
+Jacob's Contest  (only while a contest is active)
+  {medal}
+  Ends in {mm:ss}
+  Total Score: {n}
+  Total 'til next rank: {n}
 ```
-
-- Header shows current macro/crop + uptime.
-- `Inventory Worth (NPC)` block lists top-N item stacks in inventory by NPC
-  value, plus Purse line.
-- `Skills` block shows level (Roman + numeric) + progress %.
-- `Jacob's Contest` block appears only when a contest is active
-  (`JacobContestTracker`).
-
----
 
 ## Data providers
 
-| Panel             | Provider               | Refresh    |
-|-------------------|------------------------|------------|
-| Session Profit    | ProfitTracker          | 1 s        |
-| Drop list         | DropTracker (loot bus) | per event  |
-| Coins/XP per hour | RollingRateTracker     | 1 s        |
-| Uptime            | MacroSession           | tick       |
-| BPS / Crops/min   | BlockBreakTracker      | 200 ms EMA |
-| Skill level/prog  | SkillAPI / scoreboard  | 2 s        |
-| Yaw/Pitch         | ZenithEyes.debugData() | tick       |
-| Jacob's Contest   | JacobContestTracker    | chat event |
-| Inventory worth   | InventoryValuer        | 1 s        |
-| Pests             | ChatPatternEngine      | chat event |
-| Magic Find        | BuffTracker            | 1 s        |
+| Panel              | Provider               | Refresh    |
+|--------------------|------------------------|------------|
+| Session Profit     | ProfitTracker          | 1 s        |
+| Drop list          | DropTracker (loot bus) | per event  |
+| Coins/XP per hour  | RollingRateTracker     | 1 s        |
+| Uptime             | MacroSession           | tick       |
+| BPS / Crops/min    | BlockBreakTracker      | 200 ms EMA |
+| Skill level/prog   | SkillAPI / scoreboard  | 2 s        |
+| Yaw/Pitch          | ZenithEyes.debugData() | tick       |
+| Jacob's Contest    | JacobContestTracker    | chat event |
+| Inventory worth    | InventoryValuer        | 1 s        |
+| Pests / counter    | ChatPatternEngine      | chat event |
+| Magic Find         | BuffTracker            | 1 s        |
 
 ## Rules
 
-- Master rule §1 (no hardcoded slot indices) applies to *reading* GUI state
-  for panels (e.g. Jacob's Contest preview) just as it does to clicks.
+- Master rule §1 (no hard-coded slot indices) applies to reading GUI state for
+  panels (e.g. Jacob's Contest preview) just as it does to clicks.
 - Number formatting uses comma thousands separators (UK locale) to match the
-  reference screenshots, not dots.
-- Panels use `Theme.current().textPrimary/.textSecondary/.accent` — no
-  hardcoded colours except gold for "earnings" lines (0xFFAA00) and the
-  progress-bar fill colour (accent).
+  reference screenshots.
+- Panels use `Theme.current().textPrimary/.textSecondary/.accent` for the
+  bulk of colours; gold `0xFFAA00` for earnings, panel-specific gold/orange
+  for the Yaw/Pitch debug lines.
 - Panel positions persist in `hud_layout.json` (already registered).
-- All panels can be toggled on/off via `.z hud toggle <name>` and the
+- All panels can be toggled via `.z hud toggle <name>` and from the
   Dashboard HUD tab.
+- Macro panels are generic — the same `CombatStatsPanel` is reused for
+  ghosts, endermen, dragons, etc., by changing the title string and
+  registering a drop-list provider. No per-boss hard-coded panels.

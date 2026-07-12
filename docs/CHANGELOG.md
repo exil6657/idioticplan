@@ -4,6 +4,60 @@ All notable changes to the Zenith Client are tracked here. The format is
 loosely based on Keep a Changelog; phases correspond to the 20-phase master
 roadmap.
 
+## [1.0.0] - Phase 10 revision — Failsafe behaviour overhaul + HUD corrections
+
+### Changed (per user direction)
+- **Escape command is `/is`, never `/home`:** Warp actions now send `/is`
+  (private island) via `BanActionHandler.sendIsland()`. `/home` is deprecated
+  and aliased to `/is`. `/hub` is still the fallback.
+- **Low health fights back, does NOT warp:** LOW_HEALTH / LOW_HUNGER severity
+  changed from WARP_HOME to COMBAT. The new `CombatReactionAction` aims
+  ZenithEyes at the nearest hostile within 6 blocks and swings the held item
+  via KeySimulator, auto-clearing after 4 s. Hypixel custom HP is accounted
+  for via PlayerHealthMonitor.
+- **Wiggle reactions for camera snaps:** new `WiggleReactionAction` plays a
+  ~700–1200 ms ±20° yaw / ±7° pitch human-looking wiggle after rotation
+  snapback / yaw flip / player-nearby / wrong-tool events. `ChatQuestionMarkAction`
+  sends a single "?" in chat (rate-limited to 30 s) when a snap happens.
+- **Obstruction detection + block-breaking:** new `ObstructionDetector` fires
+  when the player is stuck (forward input, ~0 horizontal velocity, solid block
+  ahead for >1.2 s). `RemoveObstructionAction` pauses, looks at the block,
+  optionally sends "?", left-clicks (via KeySimulator.setAttack) to break it
+  for up to 2.5 s, then resumes or repaths around if it won't break.
+- **Instant respawn + repath on death / teleport / world-change:** DEATH now
+  triggers INSTANT_RESPAWN (clicks the DeathScreen "Respawn" button or calls
+  `player.respawn()`), then REPATH. TELEPORT / LAGBACK / WORLD_CHANGE / LIMBO
+  also trigger REPATH. `RepathReactionAction` calls ZenithPath.requestPath
+  back to the active macro's destination provider (walking + sprinting +
+  etherwarp + jump pads + NPCs — macro modules register their anchor via
+  `setProvider(...)`).
+- **Reactive severities no longer freeze macros:** WIGGLE_REACT / COMBAT /
+  REMOVE_OBSTRUCTION / INSTANT_RESPAWN / REPATH run alongside the running
+  macro instead of pausing it — they drive camera/keys/path without halting
+  the macro tick. Only PAUSE / WARP_ISLAND / WARP_HUB / DISCONNECT actually
+  freeze input/macros.
+- **HUD panels corrected:** `FarmingStatsPanel` no longer hardcodes a
+  watermelon — icon/activity/skill are set dynamically via
+  `setActiveMacro(icon, activity, skill)` depending on whichever macro is
+  running. The "Ghost Profit" panel is renamed to generic `CombatProfitPanel`
+  (the reference screenshots were design reference, not a literal target).
+- **docs/HUD.md** rewritten to emphasise that the three user screenshots are
+  design REFERENCES, with a table of which features to borrow from each.
+- **FailsafeConfig / FailsafeStrictness** ladder expanded to 10 levels: NONE,
+  NOTIFY, PAUSE, WIGGLE_REACT, COMBAT, REMOVE_OBSTRUCTION, INSTANT_RESPAWN,
+  REPATH, WARP_ISLAND (/is), WARP_HUB (/hub), DISCONNECT. Safety dot colours
+  updated (amber = reaction running, orange = paused/warping).
+
+### Added
+- `ChatQuestionMarkAction` — rate-limited "?" sender.
+- `WiggleReactionAction` — smooth ±20°/±7° camera jitter via ZenithEyes.
+- `CombatReactionAction` — auto-aim + swing at nearest hostile.
+- `RemoveObstructionAction` — look-at + break block, repath on timeout.
+- `RepathReactionAction` — ZenithPath.requestPath back to active macro anchor.
+- `RespawnAction` — instant DeathScreen respawn click.
+- `ObstructionDetector` — stuck-against-block detector.
+- `CombatProfitPanel` (generic; replaces GhostProfitPanel sub-folder).
+
 ## [1.0.0] - Phase 10 — GUI Dashboard + AH Foundation
 
 ### Added

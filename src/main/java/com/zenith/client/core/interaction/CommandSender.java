@@ -7,11 +7,13 @@ import net.minecraft.network.protocol.game.ServerboundChatCommandPacket;
 import java.time.Instant;
 
 /**
- * Sends chat commands that actually reach the server (e.g. /ah, /home, /warp).
+ * Sends chat commands that actually reach the server (e.g. /ah, /is, /warp).
  *
  * <p>Used by navigation/interactor code that needs the server to act — NOT for
  * dot-commands, which are intercepted before leaving the client (master rule §4).
  * A 400–700 ms humanised delay is applied between commands to look legitimate.</p>
+ * <p>Note for SkyBlock: the safe escape is {@code /is} (private island), not
+ * {@code /home} which does not exist in SkyBlock.</p>
  */
 public final class CommandSender {
 

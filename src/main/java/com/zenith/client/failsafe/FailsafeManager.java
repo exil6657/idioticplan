@@ -28,10 +28,12 @@ import java.util.Map;
  * into the {@link ReactionEngine} for mistake-simulation / ban-action /
  * notification logic.</p>
  *
- * <p>When the highest active severity reaches a given threshold, the manager
- * pauses all macros, freezes the {@link KeySimulator}, tells {@link ZenithPath}
- * to stop, disables {@link ZenithEyes} automatic rotation, and (at the top of
- * the ladder) sends {@code /home}, {@code /hub}, or disconnects.</p>
+ * <p>Reactive severities (WIGGLE_REACT / COMBAT / REMOVE_OBSTRUCTION /
+ * INSTANT_RESPAWN / REPATH) run alongside the macro — they wiggle the camera,
+ * swing to fight back, break blocking blocks, respawn, or repath without
+ * pausing. Only PAUSE and above actually freezes macros; at the top of the
+ * ladder we send {@code /is} (private island), then {@code /hub} fallback,
+ * then disconnect.</p>
  *
  * <p>Master doc §7: failsafes are the last line of defence — they must never
  * throw and they must never block the main thread for longer than a tick.</p>
@@ -129,6 +131,7 @@ public final class FailsafeManager {
         addDetector(new EtherwarpDetector());
         addDetector(new PlayerCloneDetector());
         addDetector(new DisconnectDetector());
+        addDetector(new ObstructionDetector());
 
         // Subscribe manager + detector @SubscribeEvent methods to the event bus.
         ZenithEventBus.getInstance().register(this);
@@ -277,9 +280,11 @@ public final class FailsafeManager {
     public void onExternalTrigger(FailsafeTriggerEvent ev) {
         if (!initialised || !config.globalEnabled) return;
         FailsafeType type = FailsafeType.CUSTOM;
+        // Legacy severity codes: 0=pause/notify, 1=warp, 2=disconnect — mapped to
+        // the new ladder: PAUSE / WARP_ISLAND / DISCONNECT.
         FailsafeStrictness sev = switch (ev.getSeverity()) {
-            case 0  -> FailsafeStrictness.NOTIFY;
-            case 1  -> FailsafeStrictness.WARP_HOME;
+            case 0  -> FailsafeStrictness.WIGGLE_REACT;
+            case 1  -> FailsafeStrictness.WARP_ISLAND;
             case 2  -> FailsafeStrictness.DISCONNECT;
             default -> FailsafeStrictness.PAUSE;
         };
@@ -375,37 +380,46 @@ public final class FailsafeManager {
 
     private void applySeverity(long now) {
         FailsafeStrictness s = highestSeverity;
-        if (s.level() < FailsafeStrictness.PAUSE.level()) {
+
+        // Reactive severities (WIGGLE_REACT / COMBAT / REMOVE_OBSTRUCTION /
+        // INSTANT_RESPAWN / REPATH) do NOT pause the macro — they run alongside
+        // it (the reaction engine drives camera wiggles, combat swings,
+        // block-breaking, respawn clicks, and A* repaths while the macro
+        // keeps ticking). Only explicit freeze tiers actually halt things.
+        boolean needsFreeze = switch (s) {
+            case NONE, NOTIFY, WIGGLE_REACT, COMBAT, REMOVE_OBSTRUCTION,
+                 INSTANT_RESPAWN, REPATH -> false;
+            case PAUSE, WARP_ISLAND, WARP_HUB, DISCONNECT -> true;
+        };
+
+        if (!needsFreeze) {
             if (inputFrozen || macrosPaused) {
                 inputFrozen = false;
                 macrosPaused = false;
                 disconnecting = false;
                 BitsSpendBlocker.setBlocked(false);
-                // Do NOT re-enable ZenithEyes automatically — leave it off until the player
-                // presses resume / clears the trigger, so we don't silently resume rotation.
-                ZenithChat.getInstance().info("Failsafe condition cleared — press resume to re-enable macros.");
+                ZenithEyes.getInstance().setEnabled(true);
+                ZenithChat.getInstance().info("Failsafe reaction running alongside macros.");
             }
-            return;
-        }
-
-        // PAUSE tier and above: freeze input and macros.
-        if (!inputFrozen) {
-            inputFrozen = true;
-            macrosPaused = true;
-            BitsSpendBlocker.setBlocked(true);
-            ZenithPath.getInstance().stop();
-            ZenithEyes.getInstance().setEnabled(false);
-            KeySimulator keys = InputEngine.getInstance().keys();
-            if (keys != null) keys.halt();
-        }
-
-        if (s.atLeast(FailsafeStrictness.WARP_HOME)) {
-            if (!disconnecting) {
-                banActions.sendHome();
+        } else {
+            if (!inputFrozen) {
+                inputFrozen = true;
+                macrosPaused = true;
+                BitsSpendBlocker.setBlocked(true);
+                ZenithPath.getInstance().stop();
+                ZenithEyes.getInstance().setEnabled(false);
+                KeySimulator keys = InputEngine.getInstance().keys();
+                if (keys != null) keys.halt();
             }
         }
-        if (s.atLeast(FailsafeStrictness.WARP_SPAWN)) {
-            if ((now - dominantSinceMs) > config.escalationStepMs * 3L) {
+
+        if (s.atLeast(FailsafeStrictness.WARP_ISLAND) && s != FailsafeStrictness.COMBAT
+                && s != FailsafeStrictness.REMOVE_OBSTRUCTION) {
+            if (!disconnecting && s.atLeast(FailsafeStrictness.WARP_ISLAND)) {
+                banActions.sendIsland();
+            }
+            if (s.atLeast(FailsafeStrictness.WARP_HUB)
+                    && (now - dominantSinceMs) > config.escalationStepMs * 3L) {
                 banActions.sendHub();
             }
         }

@@ -80,8 +80,12 @@ public class ZenithClient implements ClientModInitializer {
         ChatPatternEngine.getInstance().init();
         WorldHook.init();
 
-        // Phase 7: Failsafe system — 19 detectors, mistake-simulation reaction engine,
-        // severity ladder (NOTIFY → PAUSE → WARP_HOME → WARP_SPAWN → DISCONNECT).
+        // Phase 7: Failsafe system — 20 detectors, mistake-simulation + combat/
+        // obstruction/respawn/repath reaction engine, severity ladder (NOTIFY →
+        // WIGGLE_REACT → COMBAT → REMOVE_OBSTRUCTION → INSTANT_RESPAWN → REPATH
+        // → WARP_ISLAND (/is) → WARP_HUB → DISCONNECT). Low health fights back,
+        // blocked paths break the obstruction, death respawns instantly and
+        // teleports re-pathfind to the macro anchor rather than stopping.
         FailsafeManager.getInstance().init();
 
         // Phase 8: API/data layer — NEU items/recipes/constants, Moulberry lowestbin,

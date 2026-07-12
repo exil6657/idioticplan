@@ -4,8 +4,11 @@ import com.zenith.client.core.player.PlayerHealthMonitor;
 import com.zenith.client.failsafe.FailsafeType;
 
 /**
- * Escalates to {@code WARP_HOME} if the player's health drops below 3 hearts
- * (6 HP) or if hunger hits zero while a macro is active.
+ * Triggers LOW_HEALTH (COMBAT reaction: look at attacker, swing to fight back)
+ * when HP drops below 3 hearts (6 HP) or when hunger hits zero while a macro is
+ * active. Does NOT warp home — per user direction we fight back rather than
+ * fleeing. Hypixel's custom HP system (Defense / ❤ / Absorption) is read via
+ * ActionBar/Scoreboard in PlayerHealthMonitor where available.
  */
 public class LowHealthDetector extends AbstractDetector {
 
@@ -26,9 +29,9 @@ public class LowHealthDetector extends AbstractDetector {
         }
         if (lowFood) {
             lastLowHungerMs = nowMs;
-            trigger(FailsafeType.NO_HUNGER, "hunger=0");
+            trigger(FailsafeType.LOW_HUNGER, "hunger=0");
         }
         if (!lowHp && nowMs - lastLowHpMs > 2500) clear(FailsafeType.LOW_HEALTH);
-        if (!lowFood && nowMs - lastLowHungerMs > 2500) clear(FailsafeType.NO_HUNGER);
+        if (!lowFood && nowMs - lastLowHungerMs > 2500) clear(FailsafeType.LOW_HUNGER);
     }
 }

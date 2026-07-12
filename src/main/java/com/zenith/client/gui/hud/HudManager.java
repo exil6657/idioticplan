@@ -3,12 +3,12 @@ package com.zenith.client.gui.hud;
 import com.zenith.client.core.event.annotation.SubscribeEvent;
 import com.zenith.client.core.event.events.RenderHudEvent;
 import com.zenith.client.gui.component.GuiDrawContext;
+import com.zenith.client.gui.hud.panels.CombatProfitPanel;
 import com.zenith.client.gui.hud.panels.FarmingStatsPanel;
 import com.zenith.client.gui.hud.panels.ModuleListPanel;
 import com.zenith.client.gui.hud.panels.SafetyPanel;
 import com.zenith.client.gui.hud.panels.SessionPanel;
 import com.zenith.client.gui.hud.panels.WatermarkPanel;
-import com.zenith.client.gui.hud.panels.combat.GhostProfitPanel;
 import com.zenith.client.gui.hud.editor.HudEditor;
 import com.zenith.client.gui.theme.ThemeManager;
 
@@ -34,7 +34,7 @@ public final class HudManager {
         register(new ModuleListPanel());
         register(new SafetyPanel());
         register(new FarmingStatsPanel());
-        register(new GhostProfitPanel());
+        register(new CombatProfitPanel());
         register(new SessionPanel());
         HudLayoutManager.getInstance().init();
         applyLayout();

@@ -10,7 +10,7 @@ import net.minecraft.world.entity.player.Player;
  * Detects unexpected player teleports (un-synced position changes that were
  * not the result of our own pathfinding movement).
  *
- * <p>Hypixel uses teleport packets for lags, staff pulls, /warp, /home,
+ * <p>Hypixel uses teleport packets for lags, staff pulls, /warp, /is,
  * being kicked from an island, etc. If the player moves more than ~3 blocks
  * horizontally or 5 blocks vertically within a single tick and we weren't
  * expecting it (e.g. via an etherwarp request), that's a trigger.</p>

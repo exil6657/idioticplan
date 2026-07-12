@@ -1,4 +1,4 @@
-package com.zenith.client.gui.hud.panels.combat;
+package com.zenith.client.gui.hud.panels;
 
 import com.zenith.client.engine.render.Color4f;
 import com.zenith.client.gui.component.GuiDrawContext;
@@ -6,27 +6,35 @@ import com.zenith.client.gui.hud.HudPanel;
 import com.zenith.client.gui.theme.ThemeManager;
 
 /**
- * "Ghost Profit Tracker"-style panel: itemised drop list with counts × coin
- * value, kills/combo/XP/MF footer, session profit, P/H, uptime.
+ * Generic combat profit-tracker panel. The reference screenshot was "Ghost
+ * Profit Tracker"; the same panel is reused for ghosts, endermen, dragons,
+ * etc. by changing the title string and registering a drop-list provider.
  *
- * <p>Populated in Phase 15 (combat macros).</p>
+ * <p>Sections: dynamic title, itemised drop list (count × name × value),
+ * Kills / Kills-since-rare / Max Combo / XP Gained / Avg Magic Find /
+ * Bestiary, then Session Profit / Profit Per Hour / Total Uptime footer.</p>
  */
-public class GhostProfitPanel extends HudPanel {
+public class CombatProfitPanel extends HudPanel {
+
+    private static volatile String title = "Combat Profit";
+
+    public static void setTitle(String t) { title = t == null ? "Combat Profit" : t; }
+
     {
-        panelId = "GhostProfitPanel";
+        panelId = "CombatProfitPanel";
         width = getDefaultWidth();
         height = getDefaultHeight();
     }
 
-    @Override public float getDefaultWidth() { return 240; }
-    @Override public float getDefaultHeight() { return 120; }
+    @Override public float getDefaultWidth() { return 250; }
+    @Override public float getDefaultHeight() { return 130; }
 
     @Override
     public void render(GuiDrawContext ctx, int mx, int my, float td) {
         var theme = ThemeManager.getInstance().current();
         float y = this.y + 2;
-        ctx.drawString("Ghost Profit Tracker", x + 4, y, new Color4f(1f, 0.85f, 0.2f, 1f), true); y += 12;
-        ctx.drawString("  (drop list populated in combat phase)", x + 4, y, theme.textSecondary, false); y += 10;
+        ctx.drawString(title, x + 4, y, new Color4f(1f, 0.85f, 0.2f, 1f), true); y += 12;
+        ctx.drawString("  (drop list populated by active combat macro)", x + 4, y, theme.textSecondary, false); y += 10;
         ctx.drawString("Kills: 0", x + 4, y, theme.textPrimary, true); y += 10;
         ctx.drawString("Max Kill Combo: 0", x + 4, y, theme.textPrimary, true); y += 10;
         ctx.drawString("Combat XP Gained: 0", x + 4, y, theme.textPrimary, true); y += 10;
