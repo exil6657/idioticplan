@@ -17,6 +17,8 @@
     "MixinOptions",
     "MixinCamera",
     "MixinPlayerRenderer",
+    "MixinChatScreen",
+    "MixinCommandSuggestions",
     "accessor.MouseAccessor",
     "accessor.OptionsAccessor",
     "accessor.CameraAccessor"

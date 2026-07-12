@@ -348,3 +348,38 @@ roadmap.
 - Master rules enforced: §1 slot lookups (future click paths go through GUISlotFinder), §2 eyes only via ZenithEyes, §3 movement via ZenithPath (none in Phase 9 — navigation is stubbed), §4 no chat to server, §5 Gaussian jitter in BreakScheduler, §6 state machines for orders/breaks/AH interaction, §7 events (FailsafeTriggerEvent, BreakStart/End, PurseChange), §8 FlipEngine/FlipperConfig persisted, §9 keybind-agnostic hotkey, §10 no hardcoded research — prices come from Moulberry/Coflnet/NEU only.
 - All network I/O runs on ioPool; tick thread only polls queues and state.
 - OrderManager refuses new orders when failsafes are active, over budget, or over loss ceiling.
+
+## [1.0.0] - Phase 10 — Dashboard GUI + Command completion
+
+### Added
+- **ZenithScreenWrapper** — bridges ZenithScreen (pure component tree) to vanilla Screen for click/render/input/close, background dimming, ESC close, isPauseScreen=false.
+- **DashboardScreen** — the primary control surface opened by `.z dashboard` or `OPEN_DASHBOARD` keybind. Tabs: Home, Flipper, Failsafe, Macros, Settings.
+  - Home: version/phase display, Resume Failsafe, EMERGENCY STOP, Close.
+  - Flipper: Start/Stop buttons + toggles (AH BIN, Bazaar spreads, Craft flips, NPC flips, Scheduled breaks).
+  - Failsafe: Clear & Resume, Disconnect, Sound/Toast alert toggles.
+  - Macros: placeholder panel (farming/mining/combat/fishing/foraging phases fill this in).
+  - Settings: HUD visibility, Brain View, chat prefix, Open HUD Editor, Reset Layout.
+  - Status footer showing failsafe state + flipper profit.
+- **ZenithScreenWrapper.open/close/isOpen** for callers.
+- **ZenithToggle** component — small clickable toggle switch with onToggle callback (used in dashboard panels).
+- **ZenithTabBar** component — animated underline tabs used by the dashboard.
+- **Command tab completion** via MixinCommandSuggestions:
+  - Intercepts `CommandSuggestions.updateCommandInfo` when input starts with `.z`.
+  - Provides root-command suggestions, then delegates to `Command.suggest(argv)` per command.
+  - FailsafeCmd.suggest: subcommands (status/resume/list/test/clear); test suggests FailsafeType names.
+  - FlipCmd.suggest: subcommands (start/stop/status/profit/stats/reset).
+- **Command** interface gained `default List<String> suggest(argv)` method (default empty).
+- **CommandCompleter** splits input respecting trailing-space, filters prefix-insensitive, prepends ".z ".
+- **MixinChatScreen** placeholder target for future chat UI extensions.
+- **DashboardCmd** now actually opens the DashboardScreen instead of returning a stub message.
+- OPEN_DASHBOARD keybind wired in FailsafeManager to toggle dashboard open/closed.
+
+### Changed
+- Removed duplicate FlipCmd register in CommandManager (was registered twice).
+- ZenithClient banner updated to Phase 10.
+- Command system is now explicitly secondary — the dashboard GUI is the primary control surface, per design direction.
+
+### Design
+- Dot commands never reach the server; completion is entirely client-side via mixin on CommandSuggestions.
+- No custom Fabric channels; brigadier is not extended (would send brand packets / register server-side commands).
+- All toggles in the dashboard mutate live config fields (persistence wiring for those specific settings lands when settings panels are expanded in Phase 13).

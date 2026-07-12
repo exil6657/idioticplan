@@ -46,4 +46,10 @@ public class FlipCmd implements Command {
             default -> { return CommandResult.error("unknown subcommand: " + sub); }
         }
     }
+
+    @Override
+    public java.util.List<String> suggest(String[] argv) {
+        if (argv.length <= 2) return java.util.List.of("start", "stop", "status", "profit", "stats", "reset");
+        return java.util.List.of();
+    }
 }

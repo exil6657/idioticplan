@@ -145,6 +145,15 @@ public final class FailsafeManager {
                     trigger(FailsafeType.CUSTOM, "emergency-stop hotkey", FailsafeStrictness.PAUSE);
                     ZenithChat.getInstance().error("Emergency stop pressed — macros paused.");
                 });
+        com.zenith.client.keybind.KeybindManager.getInstance().register(
+                com.zenith.client.keybind.ZenithKeybinds.OPEN_DASHBOARD, () -> {
+                    if (com.zenith.client.gui.ZenithScreenWrapper.isOpen()) {
+                        com.zenith.client.gui.ZenithScreenWrapper.close();
+                    } else {
+                        com.zenith.client.gui.ZenithScreenWrapper.open(
+                                new com.zenith.client.gui.dashboard.DashboardScreen());
+                    }
+                });
 
         ZenithClient.LOGGER.info("[Failsafe] Initialised ({} detectors).", detectors.size());
     }

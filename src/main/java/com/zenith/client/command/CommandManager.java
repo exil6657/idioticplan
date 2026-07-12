@@ -52,6 +52,7 @@ public final class CommandManager {
         register(new FailsafeCmd());
         register(new FlipCmd());
         ZenithClient.LOGGER.info("[CommandManager] {} commands registered", commands.size());
+        ZenithClient.LOGGER.info("[CommandManager] {} commands registered", commands.size());
     }
 
     public void register(Command c) { commands.put(c.getName().toLowerCase(), c); }

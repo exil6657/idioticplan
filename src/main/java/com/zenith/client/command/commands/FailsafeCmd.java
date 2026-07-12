@@ -65,4 +65,16 @@ public class FailsafeCmd implements Command {
             }
         }
     }
+
+    @Override
+    public java.util.List<String> suggest(String[] argv) {
+        // argv: ["failsafe", <arg1>, ...]  (length >= 1)
+        if (argv.length <= 2) return java.util.List.of("status", "resume", "list", "test", "clear");
+        if ("test".equalsIgnoreCase(argv[1]) && argv.length == 3) {
+            var out = new java.util.ArrayList<String>();
+            for (var t : com.zenith.client.failsafe.FailsafeType.values()) out.add(t.name());
+            return out;
+        }
+        return java.util.List.of();
+    }
 }

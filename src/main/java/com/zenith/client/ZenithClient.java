@@ -48,7 +48,7 @@ public class ZenithClient implements ClientModInitializer {
         LOGGER.info("  Zenith Client v{} loaded successfully.", ZenithClientInfo.VERSION);
         LOGGER.info("  Target:     Minecraft {}", ZenithClientInfo.MC_VERSION);
         LOGGER.info("  Developer:  {}", ZenithClientInfo.DEVELOPER);
-        LOGGER.info("  Phase:      9 of 20 — Flipping engine (AH BIN + Bazaar + NPC + Craft).");
+        LOGGER.info("  Phase:     10 of 20 — GUI Dashboard + tab completion + AH foundation.");
         LOGGER.info("==============================================================");
 
         // 1. Config
