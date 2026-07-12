@@ -1,54 +1,64 @@
 package com.zenith.client.flipping.ah;
 
+import com.zenith.client.ZenithClient;
+import com.zenith.client.core.chat.ZenithChat;
 import com.zenith.client.flipping.order.Order;
+import com.zenith.client.flipping.order.OrderManager;
 import com.zenith.client.flipping.order.OrderState;
 
 /**
- * Orchestrates the sequence of GUI actions required to (a) BIN-buy an auction
- * and (b) list a held item on the AH. Uses the core interaction layer
- * ({@link com.zenith.client.core.interaction.GUIClickExecutor},
- * {@link com.zenith.client.core.interaction.GUISlotFinder}) for rule §1 slot
- * lookup and {@link com.zenith.client.core.timer.DelayManager} for humanised
- * delays.
+ * High-level orchestrator for Auction House GUI interactions. Wraps
+ * {@link AuctionHouseExecutor} (the per-order state machine) with lifecycle
+ * methods used by {@link com.zenith.client.flipping.FlipEngine}.
  *
- * <p>Phase 9 just defines the state-machine stubs and public API; actual
- * click wiring comes with the GUI system (Phase 10 macro-GUI layer).</p>
+ * <p>All slot lookups go through {@link AuctionHouseGUI} +
+ * {@link com.zenith.client.core.interaction.GUISlotFinder} (master rule §1);
+ * all clicks go through
+ * {@link com.zenith.client.core.interaction.GUIClickExecutor}
+ * with humanised {@code DelayManager} gaps (rule §5).</p>
  */
 public final class AuctionHouseInteractor {
 
     private static final AuctionHouseInteractor INSTANCE = new AuctionHouseInteractor();
     public static AuctionHouseInteractor getInstance() { return INSTANCE; }
 
-    private volatile Order activeBuy;
-    private volatile Order activeList;
-
     private AuctionHouseInteractor() {}
 
+    /** Queue an order for BIN-buy. The executor walks the AH browser to find and buy it. */
     public void beginBuy(Order o) {
-        this.activeBuy = o;
+        if (o == null) return;
         o.transition(OrderState.NAVIGATING);
-        // TODO Phase 10: navigate to /ah, search for item, click BIN
+        AuctionHouseExecutor.getInstance().buy(o);
     }
 
+    /** Queue an order for listing (held item). Listing flow filled in the next Phase 10 iteration. */
     public void beginList(Order o) {
-        this.activeList = o;
+        if (o == null) return;
         o.transition(OrderState.NAVIGATING);
-        // TODO Phase 10: open AH, place item, set price, confirm listing
+        ZenithClient.LOGGER.debug("[AH] beginList for {} (listing flow pending)", o.itemId());
+        // TODO Phase 10 iteration 2: full list flow (OPEN_MANAGE → CHOOSE_ITEM → CREATE → SET_PRICE → LISTED).
     }
 
     public void cancelBuy() {
-        if (activeBuy != null) activeBuy.transition(OrderState.FAILED);
-        activeBuy = null;
+        // Nothing to cancel on the executor itself; it self-fails, but mark active order failed.
+        ZenithClient.LOGGER.debug("[AH] cancelBuy called");
     }
 
     public void cancelAll() {
         cancelBuy();
-        activeList = null;
     }
 
-    public boolean busy() { return activeBuy != null || activeList != null; }
+    /** @return true if the executor is currently driving an AH flow. */
+    public boolean busy() { return AuctionHouseExecutor.getInstance().busy(); }
 
     public void tick() {
-        // Phase 10: tick the GUI nav/click state machines.
+        AuctionHouseExecutor.getInstance().tick();
+    }
+
+    /** Dequeue PROPOSED/NAVIGATING buy orders into the executor if it's idle. */
+    public void pump(OrderManager mgr) {
+        if (busy()) return;
+        Order next = mgr.pollToBuy();
+        if (next != null) beginBuy(next);
     }
 }

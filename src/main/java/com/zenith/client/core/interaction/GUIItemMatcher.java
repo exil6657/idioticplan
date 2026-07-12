@@ -1,5 +1,6 @@
 package com.zenith.client.core.interaction;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -29,6 +30,13 @@ public final class GUIItemMatcher {
     }
     public static GUIItemMatcher bySkyblockId(String id) {
         GUIItemMatcher m = new GUIItemMatcher(); m.skyblockId = id; return m;
+    }
+    public static GUIItemMatcher nameContains(String contains) { return byNameContains(contains); }
+    public static GUIItemMatcher loreContains(String text) {
+        GUIItemMatcher m = new GUIItemMatcher();
+        m.loreContains = new ArrayList<>();
+        m.loreContains.add(text);
+        return m;
     }
 
     /**

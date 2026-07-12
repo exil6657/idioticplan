@@ -4,6 +4,62 @@ All notable changes to the Zenith Client are tracked here. The format is
 loosely based on Keep a Changelog; phases correspond to the 20-phase master
 roadmap.
 
+## [1.0.0] - Phase 10 — GUI Dashboard + AH Foundation
+
+### Added
+- **Zenith Dashboard** (`gui/dashboard/DashboardScreen`): primary control
+  surface (per user direction; commands are SECONDARY). 5 tabs (Home, Flipper,
+  Failsafe, Macros, Settings) with live Start/Stop/Resume/Panic/Disconnect
+  buttons + toggles wired to the running config.
+- **ZenithScreenWrapper** bridges ZenithScreen → MC Screen with dark
+  semi-transparent fill, ESC close, `isPauseScreen=false`, AnimationEngine
+  frame ticks.
+- **ZenithToggle / ZenithTabBar** components (animated underline via
+  AnimatedValue).
+- **DashboardCmd** opens the GUI (`.z dashboard`).
+- **Tab completion for dot commands**: `Command.suggest(argv)` default
+  method, `CommandCompleter`, `MixinCommandSuggestions` (inject at HEAD of
+  CommandSuggestions.updateCommandInfo, cancellable, `require=0`), plus
+  suggest() stubs on FailsafeCmd and FlipCmd.
+- **GUIInteractionEngine**: central tick subscriber that drives
+  GUIParser.tick(), SignInputHandler.tick(), GUIWaiter.checkAll(),
+  GUIClickExecutor.tick() every client tick (registered from
+  ClientTickDispatcher).
+- **CommandSender** (server-bound /ah /home /warp etc.) with 450 ms cooldown.
+- **AuctionHouseNavigator**: `/ah` sender, title detection across all AH pages,
+  `isInAH()` check, `returnToBrowser()`.
+- **GUIWaiter** expanded with static `waitForTitle(substr,timeout)` /
+  `checkAll()` / `hasAnyPending()` (uses GUIInteractionEngine tick).
+- **AuctionHouseGUI**: Page enum (BROWSER/SEARCH_SIGN/RESULTS/CONFIRM_BUY/
+  MANAGE/COLLECT/CREATE/CHOOSE_ITEM/UNKNOWN), slot finders for Search/BIN
+  toggle/Sort/BuyConfirm/Create/Manage/Back, `findListings()` scans
+  pre-player-inventory slots for auction heads, `parseCoins()` with K/M/B
+  suffix support, `parseBinPrice/parseBidPrice` lore parsing.
+- **GUIItemMatcher.nameContains / .loreContains** static factories (rule §1).
+- **SignInputHandler**: reflection-based sign-line setter + Done button via
+  `onDone()` method (replaces earlier speculative keyboard event injection,
+  which would have fired our own KeyInputEvent).
+- **AuctionHouseExecutor** state machine (buy path complete: IDLE → OPEN_AH
+  → TOGGLE_BIN → SEARCH → WAIT_SIGN → WAIT_RESULTS → WAIT_CONFIRM →
+  WAIT_BOUGHT). Listing flow (OPEN_MANAGE/CHOOSE_ITEM/CREATE/SET_PRICE/
+  CLICK_CREATE/WAIT_LISTED) is deferred to a follow-up iteration.
+- **GUIParser singleton** (`getInstance()`) — AuctionHouseExecutor no longer
+  creates a second parser.
+- **AuctionHouseInteractor** delegates to AuctionHouseExecutor + exposes
+  `pump(OrderManager)` so FlipEngine can hand BUYING/NAVIGATING orders to it.
+- **HUD panels**: `FarmingStatsPanel`, `GhostProfitPanel` (combat
+  sub-package), `SessionPanel` skeletons matching the user's three reference
+  screenshots (farming stats with Yaw/Pitch, Ghost-Profit-style itemised
+  drops, Pumpkin-style inventory/skills/Jacob layout).
+- **docs/HUD.md** spec for the tracker panels; **docs/FLIPPING.md** rewritten
+  to match the user's Bazaar→AH flipper subsystem ordering
+  (1. Market scanner+API → 2. Tax calc → 3. Item selector+Budget →
+   4. Bazaar+AH interactors → 5. Order manager → 6. Profit+History →
+   7. Craft engine → 8. NPC engine → 9. AH-craft engine → 10. Break scheduler →
+   11. Mayor system).
+- OPEN_DASHBOARD keybind wired in FailsafeManager.
+- zenithclient.mixins.json: MixinChatScreen + MixinCommandSuggestions added.
+
 ## [1.0.0] - Phase 2 — Core Framework
 
 ### Added

@@ -20,7 +20,12 @@ import java.util.List;
  */
 public final class GUIParser {
 
+    private static final GUIParser INSTANCE = new GUIParser();
+    public static GUIParser getInstance() { return INSTANCE; }
+
     private String lastTitle;
+
+    private GUIParser() {}
 
     public GUIState read() {
         Minecraft mc = Minecraft.getInstance();

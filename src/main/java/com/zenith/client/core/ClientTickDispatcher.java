@@ -7,6 +7,7 @@ import com.zenith.client.core.player.PlayerHealthMonitor;
 import com.zenith.client.core.player.PlayerPositionTracker;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.learning.MovementLearner;
+import com.zenith.client.core.interaction.GUIInteractionEngine;
 import com.zenith.client.failsafe.FailsafeManager;
 import com.zenith.client.flipping.FlipEngine;
 import com.zenith.client.world.World;
@@ -22,6 +23,7 @@ public final class ClientTickDispatcher {
     public static void register() {
         if (registered) return;
         com.zenith.client.core.event.ZenithEventBus.getInstance().register(new ClientTickDispatcher());
+        GUIInteractionEngine.getInstance().register();
         registered = true;
     }
 

@@ -25,9 +25,12 @@ import org.slf4j.LoggerFactory;
 /**
  * Fabric entrypoint for Zenith Client.
  *
- * <p><b>Phase 3 deliverable:</b> core framework + advanced ZenithEyes rotation
- * engine + ZenithPath A*/etherwarp pathfinding + InputEngine wired. Remaining
- * phases fill in mixins, macros, GUI, failsafes, etc. per the 20-phase roadmap.</p>
+ * <p><b>Current Phase 10 deliverable:</b> GUI dashboard (primary control surface),
+ * dot-command tab completion, Auction House GUI interactor/executor state machine,
+ * on top of the Phase 3 engines (ZenithEyes rotation, ZenithPath A* / etherwarp
+ * pathfinding, InputEngine). Remaining phases fill in macros, crafting,
+ * farming/mining/combat, fishing/foraging, events, Discord, ProGuard per the
+ * 20-phase roadmap.</p>
  *
  * @author Exil
  * @see ZenithClientInfo
@@ -95,8 +98,8 @@ public class ZenithClient implements ClientModInitializer {
         // Protection (bits)
         BitsProtection.getInstance().init();
 
-        ZenithChat.getInstance().success("Phase 9 initialised (flipping: AH BIN + Bazaar + NPC + Craft strategies, market scanner).");
-        LOGGER.info("[Init] Phase 6 up (commands={}, modules={}).",
+        ZenithChat.getInstance().success("Phase 10 initialised (dashboard GUI + dot-command tab completion + AuctionHouseExecutor GUI state machine).");
+        LOGGER.info("[Init] Phase 10 up (commands={}, modules={}).",
                 CommandManager.getInstance().getAll().size(),
                 ModuleManager.getInstance().count());
     }

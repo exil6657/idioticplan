@@ -140,6 +140,7 @@ public final class FlipEngine {
         orders.tick();
         fillMonitor.tick();
         ah.tick();
+        ah.pump(orders); // hand PROPOSED/NAVIGATING buy orders to AH executor if idle
         ahCraft.tick();
 
         // 3. Consume up to 2 candidates from the scanner queue.

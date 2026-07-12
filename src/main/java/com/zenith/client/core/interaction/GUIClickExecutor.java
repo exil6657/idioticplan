@@ -48,6 +48,12 @@ public final class GUIClickExecutor {
     public void leftClick(int slot) { clickSlot(slot, 0, ClickType.PICKUP); }
     public void rightClick(int slot) { clickSlot(slot, 1, ClickType.PICKUP); }
     public void shiftClick(int slot) { clickSlot(slot, 0, ClickType.QUICK_MOVE); }
+
+    /** Called from {@link GUIInteractionEngine} each tick so any pending delayed-click queue can drain. */
+    public static void tick() {
+        // Currently a no-op: DelayManager.isReady drives gating per-click. Future queues drain here.
+    }
+
     public void dropOne() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.player.containerMenu == null) return;
