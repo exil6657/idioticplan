@@ -8,6 +8,7 @@ import com.zenith.client.core.player.PlayerPositionTracker;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.learning.MovementLearner;
 import com.zenith.client.failsafe.FailsafeManager;
+import com.zenith.client.flipping.FlipEngine;
 import com.zenith.client.world.World;
 
 /**
@@ -35,5 +36,6 @@ public final class ClientTickDispatcher {
         InputEngine.getInstance().tick();
         MovementLearner.getInstance().tick();
         FailsafeManager.getInstance().tick();
+        FlipEngine.getInstance().tick();
     }
 }

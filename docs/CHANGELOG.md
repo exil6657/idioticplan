@@ -312,3 +312,39 @@ roadmap.
 - BitsSpendBlocker gained atomic global setBlocked/clear for the failsafe manager.
 - HudManager registers SafetyPanel by default (bottom-left).
 - Phase banner updated to Phase 8.
+
+## [1.0.0] - Phase 9 — Flipping Engine
+
+### Added
+- **FlipEngine** (`flipping/FlipEngine.java`) master controller. Drives MarketScanner, Bazaar/NPC/Craft/AH craft sub-engines, OrderManager, BreakScheduler, AuctionHouseInteractor, BudgetManager, ProfitTracker every tick.
+- **FlipCandidate** + **FlipType** (AH_BIN, AH_BID, BAZAAR_SPREAD, CRAFT, NPC_RESELL, BOOK_APPLY, MUSEUM).
+- **Tax** (`flipping/tax/`): TaxTier (GENERAL 1% / ACCESSORY 3% / BAZAAR buy 5% / sell 1.25%), TaxCalculator with `netFromBin`, `netFromBid`, `bazaarInstantBuyCost`, `bazaarInstantSellReceived`, `listPriceForNet` (inverse calc for undercutting), 400c listing fee + 50k cap, TaxBadge cache.
+- **Profit** (`flipping/profit/`): FlipRecord (persisted), ProfitCalculator with volume→confidence/hold-time model, ProfitTracker session stats + FlipCompleteEvent/BigFlipCompleteEvent posting.
+- **Scanner** (`flipping/scanner/`):
+  - PriceHistory rolling window with mean/median/std-dev/σ-outlier detection.
+  - SpreadCalculator evaluates BIN vs median after tax.
+  - VolumeAnalyzer exponential-decay smoothing of Coflnet volumes; updates ProfitCalculator.
+  - ItemSelector with cooldown, blacklist, filter gate.
+  - MarketScanner polls Coflnet active auctions every 4 s, runs through SpreadCalculator, enqueues profitable FlipCandidates by descending profit. Uses NEU ItemDatabaseCache for display names.
+  - MuseumDemandAnalyzer stub for donation-cap boosts.
+- **Order** (`flipping/order/`): OrderState lifecycle (PROPOSED→QUEUED_TO_BUY→NAVIGATING→BUYING→HOLDING→LISTED→COLLECTING→COMPLETED/FAILED), OrderManager with cap on open orders, timeout on stale BUYING/NAVIGATING, failAll on failsafe; UndercutDetector; FillMonitor stub; RelistStrategy (0.5% undercut, floors/caps, never below break-even+floor).
+- **Filter** (`flipping/filter/`): ItemFilter (price range, min daily volume, deny list, cosmetic/soulbound/dungeon/reforge exclusion), FilterPreset presets (lowball, high-volume, big-ticket), ItemFilterManager registry.
+- **AH** (`flipping/ah/`): AuctionHouseInteractor state-machine stub (Phase 10 fills click path); BINListingStrategy; BINvsBidCalculator (bid-confidence by time remaining); AHSalesTracker (last-64 profit window + success rate); MarketTimingAdvisor (EU/US peak multiplier); AHListingOptimizer; AHCraftFlipEngine placeholder.
+- **Bazaar** (`flipping/bazaar/BazaarFlipEngine.java`) scans 70+ hot products each minute, computes instant-buy→instant-sell after 5%/1.25% fees, enqueues FlipCandidate.BAZAAR_SPREAD when spread exceeds min profit/ROI; enforces 50k volume floor.
+- **Craft** (`flipping/craft/`): RecipeDatabase computes ingredient cost (min BIN or Bazaar buy); CraftFlipEngine scans ~10 enchanted-material / compactors / potato-book recipes for craft→BIN profit; CraftingInteractor stub; RecipeValidator.
+- **NPC** (`flipping/npc/`): NPCDatabase hardcoded seed prices; NPCFlipEngine compares NPC buy/sell vs Bazaar/BIN; NPCNavigator stub.
+- **Break** (`flipping/break_/`): BreakScheduler (Gaussian-jittered ~45 min on / ~5 min off AFK breaks), IdleBehavior (slow legit-profile lookarounds while paused), BreakConfig, PostBreakActionQueue (purse refresh + BIN re-fetch).
+- **Recovery** (`flipping/recovery/`): LimboDetector/LobbyNavigator/LimboRecoveryEngine/NavigationRecovery/RecoveryConfig/WorldStateRecovery stubs — all pause orders and trigger failsafes.
+- **Waypoint** (`flipping/waypoint/`): WaypointType enum, Waypoint record, WaypointRegistry with AH/bazaar/bank hub BlockPos seeds.
+- **Budget** (`flipping/budget/`): BudgetConfig with max-per-flip, bank reserve, session target, loss ceiling, max-open-orders; BudgetManager tracks purse via PurseChangeEvent + inventory scan, exposes canBuy(), session net.
+- **FlipperConfig** (enabled flags, min-profit coin/percent, max coins per flip, candidates per tick, auto-buy/list, hot-items seed list).
+- **FlipDebugData** snapshot for Brain View.
+- **FlipCmd** (.z flip start|stop|status|profit|reset)
+- **GuiEngine** Brain view extended with a Flipper block (running, active/listed/holding orders, session profit, scans, queue, BIN/bazaar counts, break status). Panel widened to 400×290.
+- **ClientTickDispatcher** now also calls FlipEngine.tick() after FailsafeManager.tick().
+- **Phase banner** updated to Phase 9.
+
+### Design
+- Master rules enforced: §1 slot lookups (future click paths go through GUISlotFinder), §2 eyes only via ZenithEyes, §3 movement via ZenithPath (none in Phase 9 — navigation is stubbed), §4 no chat to server, §5 Gaussian jitter in BreakScheduler, §6 state machines for orders/breaks/AH interaction, §7 events (FailsafeTriggerEvent, BreakStart/End, PurseChange), §8 FlipEngine/FlipperConfig persisted, §9 keybind-agnostic hotkey, §10 no hardcoded research — prices come from Moulberry/Coflnet/NEU only.
+- All network I/O runs on ioPool; tick thread only polls queues and state.
+- OrderManager refuses new orders when failsafes are active, over budget, or over loss ceiling.

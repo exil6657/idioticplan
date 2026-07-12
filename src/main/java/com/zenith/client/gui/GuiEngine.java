@@ -103,8 +103,8 @@ public final class GuiEngine {
     }
 
     private void renderBrainView(GuiDrawContext ctx, int w, int h) {
-        int panelW = 380;
-        int panelH = 248;
+        int panelW = 400;
+        int panelH = 290;
         float x = w/2f - panelW/2f;
         float y = h/2f - panelH/2f;
         var t = ThemeManager.getInstance().current();
@@ -142,6 +142,15 @@ public final class GuiEngine {
                 x+8, ty, t.textSecondary, false); ty += 11;
         ctx.drawString(String.format("  for=%dms reaction=%s totalTriggers=%d",
                 fail.activeForMs, fail.reactionState, fail.triggersSinceStartup),
+                x+8, ty, t.textSecondary, false); ty += 14;
+
+        var flips = com.zenith.client.flipping.FlipEngine.getInstance().debugData();
+        Color4f flipColor = flips.running ? t.textPrimary : new Color4f(0.55f,0.55f,0.55f,1f);
+        ctx.drawString(String.format("Flipper: running=%b orders=%d listed=%d profit=%d",
+                flips.running, flips.activeOrders, flips.listedOrders, flips.sessionProfit),
+                x+8, ty, flipColor, false); ty += 11;
+        ctx.drawString(String.format("  scans=%d queued=%d BIN=%d bazaar=%d break=%b",
+                flips.scans, flips.candidateQueueDepth, flips.binItems, flips.bazaarItems, flips.onBreak),
                 x+8, ty, t.textSecondary, false); ty += 14;
 
         ctx.drawString("Press .z debug brain to toggle", x+8, y+panelH-12, t.textSecondary, false);

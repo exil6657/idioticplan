@@ -13,6 +13,7 @@ import com.zenith.client.engine.eyes.ZenithEyes;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.ZenithPath;
 import com.zenith.client.failsafe.FailsafeManager;
+import com.zenith.client.flipping.FlipEngine;
 import com.zenith.client.gui.GuiEngine;
 import com.zenith.client.gui.hud.HudManager;
 import com.zenith.client.keybind.KeybindManager;
@@ -47,7 +48,7 @@ public class ZenithClient implements ClientModInitializer {
         LOGGER.info("  Zenith Client v{} loaded successfully.", ZenithClientInfo.VERSION);
         LOGGER.info("  Target:     Minecraft {}", ZenithClientInfo.MC_VERSION);
         LOGGER.info("  Developer:  {}", ZenithClientInfo.DEVELOPER);
-        LOGGER.info("  Phase:      8 of 20 — API / Data layer (NEU + Coflnet + Moulberry).");
+        LOGGER.info("  Phase:      9 of 20 — Flipping engine (AH BIN + Bazaar + NPC + Craft).");
         LOGGER.info("==============================================================");
 
         // 1. Config
@@ -84,13 +85,17 @@ public class ZenithClient implements ClientModInitializer {
         // Coflnet bazaar/mayor/flips, rate limits, scrapers, wiki, update checker.
         ApiManager.getInstance().init();
 
+        // Phase 9: Flipping engine — MarketScanner, AH/Bazaar/NPC/Craft strategies,
+        // orders, budget manager, break scheduler, profit tracker.
+        FlipEngine.getInstance().init();
+
         // Register tick dispatch (must be after event bus init).
         ClientTickDispatcher.register();
 
         // Protection (bits)
         BitsProtection.getInstance().init();
 
-        ZenithChat.getInstance().success("Phase 8 initialised (API/data layer: NEU, Moulberry, Coflnet, scrapers, wiki).");
+        ZenithChat.getInstance().success("Phase 9 initialised (flipping: AH BIN + Bazaar + NPC + Craft strategies, market scanner).");
         LOGGER.info("[Init] Phase 6 up (commands={}, modules={}).",
                 CommandManager.getInstance().getAll().size(),
                 ModuleManager.getInstance().count());
