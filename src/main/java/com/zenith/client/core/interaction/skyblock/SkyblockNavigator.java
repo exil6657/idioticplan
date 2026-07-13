@@ -44,10 +44,8 @@ public final class SkyblockNavigator {
     public void toEnd()     { CommandSender.send("/warp end"); }
     /** Travel to Dwarven Mines. */
     public void toDwarven() { CommandSender.send("/warp mines"); }
-    /** Travel to the Park (foraging). */
-    public void toPark()    { CommandSender.send("/warp park"); }
-    /** Travel to the Barn (farming). */
-    public void toBarn()    { CommandSender.send("/warp barn"); }
+    /** Alias kept for compatibility (Crimson Isle is /warp isle). */
+    public void toBlazing() { toCrimson(); }
 
     /** @return true if the player appears to be in SkyBlock (scoreboard title heuristic). */
     public boolean isInSkyblock() {

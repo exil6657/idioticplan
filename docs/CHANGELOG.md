@@ -4,6 +4,48 @@ All notable changes to the Zenith Client are tracked here. The format is
 loosely based on Keep a Changelog; phases correspond to the 20-phase master
 roadmap.
 
+## [Unreleased] — DevData developer macro (passive harvester + auto-tour)
+
+### Added
+- **`DevDataHarvester`** (`devdata/DevDataHarvester.java`) — passive in-game
+  observer that listens to `InventoryOpenEvent`, `InventoryCloseEvent`,
+  `ChatReceivedEvent`, `WorldChangeEvent`, `ClientTickEvent` and MC state
+  and records GUI layouts (slot-by-slot tables with name/skyblockId/lore),
+  sign prompts, scoreboard lines, action-bar lines, boss-bar titles, tab
+  header/footer, normalised chat patterns, world names, entity types, and
+  manual developer notes. Findings are deduplicated and flushed every 30 s
+  (plus on GUI/world transitions and `.z devdata flush`) to a single
+  markdown file: `<gameDir>/zenith/devdata/OBSERVATIONS.md`.
+- **`DevDataMacro`** (`macro/dev/DevDataMacro.java`) — autonomous developer
+  macro that drives an itinerary of warps and menu opens so the passive
+  harvester collects everything without a human at the keyboard. Tours:
+  private island → hub → `/warp barn/park/deep/gold/spider/end/mines/da/
+  museum/wizard/crypt` → `/ah` (browser + manage page, search prompt) →
+  `/bz` (catalog, opens first Farming category and first product to capture
+  Buy Instantly / Sell Instantly / Create Buy/Sell Order layouts). Sign
+  screens are auto-cancelled (ESC) after recording so the tour can proceed.
+- **`.z devdata`** command (`DevDataCmd.java`) with `on|off|status|flush|
+  snapshot|note <text>|tour|path` subcommands. `tour` is an alias that
+  starts the DevDataMacro.
+- **Dashboard Settings tab** toggle ("Record dev data") + "Flush devdata
+  .md now" button + "Run dev data tour" button (dashboard stays primary).
+- **`docs/DEVDATA.md`** — usage guide for the harvester/macro and how to
+  feed observations back into `docs/RESEARCH.md`.
+
+### Design notes
+- Zero server visibility beyond the commands/macros a player would issue
+  themselves: the macro sends `/warp`, `/ah`, `/bz`, presses Esc, and
+  clicks nothing — every GUI is simply opened so the passive harvester
+  snapshots its layout.
+- Deduplication keyed by `title|slots|rows|content-fingerprint` for GUIs
+  and by normalised (number/UUID/hex collapsed) string for chat, so running
+  the tour repeatedly produces a compact file.
+- Sign-screen reading uses the same reflective field-probing strategy as
+  `SignInputHandler` (signText/frontText/backText/SignText.getMessages) so
+  it works pre-research for R047.
+- Boss-bar and tab-header/footer reads use reflective fallbacks to avoid
+  hard-crashes on Mojang name mismatches.
+
 ## [1.0.0] - Phase 10 iteration 2 / Phase 11 start — AH listing flow, Bazaar interactor, macro framework
 
 ### Added

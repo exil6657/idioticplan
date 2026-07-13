@@ -3,6 +3,7 @@ package com.zenith.client;
 import com.zenith.client.api.ApiManager;
 import com.zenith.client.config.ConfigManager;
 import com.zenith.client.command.CommandManager;
+import com.zenith.client.devdata.DevDataHarvester;
 import com.zenith.client.core.ClientTickDispatcher;
 import com.zenith.client.core.chat.ChatPatternEngine;
 import com.zenith.client.core.chat.ZenithChat;
@@ -18,6 +19,7 @@ import com.zenith.client.gui.GuiEngine;
 import com.zenith.client.gui.hud.HudManager;
 import com.zenith.client.keybind.KeybindManager;
 import com.zenith.client.macro.MacroManager;
+import com.zenith.client.macro.dev.DevDataMacro;
 import com.zenith.client.macro.farming.MelonMacro;
 import com.zenith.client.macro.farming.PumpkinMacro;
 import com.zenith.client.macro.test.IdleMacro;
@@ -97,6 +99,7 @@ public class ZenithClient implements ClientModInitializer {
         MacroManager.getInstance().register(IdleMacro.INSTANCE);
         MacroManager.getInstance().register(MelonMacro.INSTANCE);
         MacroManager.getInstance().register(PumpkinMacro.INSTANCE);
+        MacroManager.getInstance().register(DevDataMacro.INSTANCE);
 
         // Phase 8: API/data layer — NEU items/recipes/constants, Moulberry lowestbin,
         // Coflnet bazaar/mayor/flips, rate limits, scrapers, wiki, update checker.
@@ -105,6 +108,11 @@ public class ZenithClient implements ClientModInitializer {
         // Phase 9: Flipping engine — MarketScanner, AH/Bazaar/NPC/Craft strategies,
         // orders, budget manager, break scheduler, profit tracker.
         FlipEngine.getInstance().init();
+
+        // Passive developer data harvester — listens to events and writes
+        // structured markdown observations to <gameDir>/zenith/devdata/OBSERVATIONS.md.
+        // Toggle via .z devdata on|off or the Settings dashboard tab.
+        DevDataHarvester.getInstance().init();
 
         // Register tick dispatch (must be after event bus init).
         ClientTickDispatcher.register();

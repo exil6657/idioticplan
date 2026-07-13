@@ -11,6 +11,7 @@ import com.zenith.client.gui.component.*;
 import com.zenith.client.gui.hud.panels.FarmingStatsPanel;
 import com.zenith.client.gui.theme.Theme;
 import com.zenith.client.gui.theme.ThemeManager;
+import com.zenith.client.devdata.DevDataHarvester;
 import com.zenith.client.macro.MacroManager;
 import com.zenith.client.macro.MacroModule;
 
@@ -109,6 +110,20 @@ public class DashboardScreen extends ZenithScreen {
         settingsPanel.add(new ZenithToggle("HUD visible", true));
         settingsPanel.add(new ZenithToggle("Brain View (debug)", false));
         settingsPanel.add(new ZenithToggle("Chat prefix", true));
+        settingsPanel.add(new Label(" ", secondary()));
+        settingsPanel.add(new Label("Developer tools", secondary()));
+        settingsPanel.add(new ZenithToggle("Record dev data (→ OBSERVATIONS.md)",
+                DevDataHarvester.getInstance().isEnabled())
+                .onToggle(v -> DevDataHarvester.getInstance().setEnabled(v)));
+        settingsPanel.add(new Button("Flush devdata .md now", b -> {
+            DevDataHarvester.getInstance().flush();
+            ZenithChat.getInstance().info("DevData flushed to {}", DevDataHarvester.getInstance().getOutputPath());
+        }));
+        settingsPanel.add(new Button("Run dev data tour", b -> {
+            MacroManager.getInstance().stopAll("devdata dashboard");
+            MacroManager.getInstance().start("dev:devdata");
+            ZenithChat.getInstance().info("Dev data tour started — it will warp around and open /ah + /bz automatically.");
+        }));
         settingsPanel.add(new Button("Open HUD Editor", b -> {
             com.zenith.client.gui.hud.editor.HudEditor.getInstance().toggle();
         }));
