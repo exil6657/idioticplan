@@ -416,6 +416,13 @@ for failsafe calls `FailsafeManager.getInstance().loadConfig((FailsafeConfigFile
   live here.
 - `gui/dashboard/DashboardScreen.java` — primary GUI.
 - `gui/hud/HudManager.java` — registers panels.
+- `devdata/DevDataHarvester.java` — passive in-game observer added at the
+  user's request. Listens to InventoryOpen/Close, ChatReceived, WorldChange,
+  ClientTick and writes deduplicated markdown (GUI slot tables, sign prompts,
+  scoreboard/action-bar/boss-bar/tab lines, normalised chat, entities, manual
+  notes) to `<gameDir>/zenith/devdata/OBSERVATIONS.md` every 30 s. Controlled
+  by `.z devdata <on|off|status|flush|snapshot|note|path>` and by a toggle on
+  the dashboard Settings tab. See `docs/DEVDATA.md` for full usage.
 
 ### Bugs / known issues to fix when you pick up
 
@@ -463,8 +470,13 @@ for failsafe calls `FailsafeManager.getInstance().loadConfig((FailsafeConfigFile
 - The user will send `.z` commands as SECONDARY; the dashboard is primary.
   Don't add Brigadier commands.
 
-Pick up from **"What is NOT done yet"** item #1
-(AuctionHouseExecutor listing flow), then #2 (Bazaar interactor), get
-Phase 10 to a clean stopping point, and move into Phase 11 (macro
-framework base). The goal is to get Phases 10–13 to a runnable state where
+Pick up from **"What is NOT done yet"** below. DevDataHarvester (see
+`docs/DEVDATA.md`) is now live and will populate `OBSERVATIONS.md` the
+moment the client runs — use its output to fill in R042 (Bazaar full flow),
+R045 (DeathScreen presence), R046 (HP action bar regex), R047 (SignEditScreen
+field names), and the scoreboard/tab/bossbar entries R002/R003/R005.
+
+The short-term goal is to get Phases 10–13 to a runnable state where
 farming + AH flipping actually work end-to-end in a dev environment. Good luck.
+
+**Latest commit on `arena/019f56d8-idioticplan`:** `950501d` — DevDataHarvester + DevDataMacro (autonomous dev-data tour macro). See `docs/DEVDATA.md`.
