@@ -215,8 +215,9 @@ HUD + Brain View), d677ef3 (Phase 6 World + GUI), 8c27127 (Phase 7 Failsafe),
 a22b5e3 (Phase 8 API/data), c097633 (Phase 9 Flipping),
 82c4dc6 + 281f551 (Phase 10 — GUI Dashboard, dot-command tab completion, AH
 foundation + failsafe overhaul/HUD corrections),
-694ff68 (Phase 10 iteration 2: full AH listing flow, Bazaar interactor +
-executor, Phase 11 start: MacroModule / MacroManager base + MacroCmd).
+694ff68 (Phase 10 it.2: AH listing flow, Bazaar interactor, Phase 11 start)
+a785c8e (Phase 11 follow-up: MacroManager auto-resume, SkyblockNavigator,
+TravelEngine, Idle/Melon/Pumpkin macros).
 
 ### What Phase 10 contains (built already)
 
