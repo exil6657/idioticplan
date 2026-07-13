@@ -87,6 +87,12 @@ public abstract class MacroModule implements RepathReactionAction.DestinationPro
             RepathReactionAction.setProvider(this);
             onStart();
             state = MacroState.RUNNING;
+            // Update the HUD stats panel with our icon/activity/skill family.
+            try {
+                var panelClass = Class.forName("com.zenith.client.gui.hud.panels.FarmingStatsPanel");
+                var m = panelClass.getMethod("setActiveMacro", String.class, String.class, String.class);
+                m.invoke(null, icon(), displayName(), skillFamily());
+            } catch (Throwable ignored) {}
             ZenithClient.LOGGER.info("[Macro] {} started.", id());
         } catch (Throwable t) {
             state = MacroState.ERROR;
@@ -182,8 +188,6 @@ public abstract class MacroModule implements RepathReactionAction.DestinationPro
         if (registeredFailsafe) return;
         registeredFailsafe = true;
         com.zenith.client.core.event.ZenithEventBus.getInstance().register(new Object() {
-            @SubscribeEvent
-            public void onFailsafe(FailsafeTriggerEvent ev) { /* pause handled in dispatchTick */ }
             @SubscribeEvent
             public void onBreakStart(BreakStartEvent ev) { if (isRunning()) { state = MacroState.ON_BREAK; onBreakStart(ev.getScheduledDurationMs()); } }
             @SubscribeEvent

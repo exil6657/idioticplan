@@ -40,6 +40,7 @@ public final class ClientTickDispatcher {
         MovementLearner.getInstance().tick();
         FailsafeManager.getInstance().tick();
         MacroManager.getInstance().tick();
+        com.zenith.client.core.interaction.skyblock.TravelEngine.getInstance().tick();
         FlipEngine.getInstance().tick();
     }
 }

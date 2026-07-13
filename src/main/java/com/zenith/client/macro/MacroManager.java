@@ -61,6 +61,14 @@ public final class MacroManager {
 
     /** Called every client tick (from ModuleManager.tickAll or ClientTickDispatcher). */
     public void tick() {
-        if (active != null) active.dispatchTick();
+        if (active != null) {
+            // Auto-resume after failsafe clears: if active macro is PAUSED and
+            // FailsafeManager says macros aren't paused, resume.
+            if (active.state() == MacroModule.MacroState.PAUSED
+                    && !com.zenith.client.failsafe.FailsafeManager.getInstance().areMacrosPaused()) {
+                active.resume();
+            }
+            active.dispatchTick();
+        }
     }
 }

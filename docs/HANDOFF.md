@@ -207,14 +207,16 @@ Order of implementation and wiring in `docs/FLIPPING.md` is exactly:
 
 ### Phase status (commits so far)
 
-Phases 1–10 are on branch `arena/019f56d8-idioticplan`, pushed to origin,
-PR #1 exists. Commits:
+Phases 1–10 (+ Phase 11 start) are on branch `arena/019f56d8-idioticplan`,
+pushed to origin, PR #1 exists. Commits:
 ea6988f (Phase 1 Build), 927ffee (Phase 2 Core), 235a764 (Phase 3 ZenithEyes
 + ZenithPath engines), 9669f7b (Phase 4 Mixins + GUI), 87ac8f7 (Phase 5
 HUD + Brain View), d677ef3 (Phase 6 World + GUI), 8c27127 (Phase 7 Failsafe),
 a22b5e3 (Phase 8 API/data), c097633 (Phase 9 Flipping),
 82c4dc6 + 281f551 (Phase 10 — GUI Dashboard, dot-command tab completion, AH
-foundation + failsafe overhaul/HUD corrections described above).
+foundation + failsafe overhaul/HUD corrections),
+694ff68 (Phase 10 iteration 2: full AH listing flow, Bazaar interactor +
+executor, Phase 11 start: MacroModule / MacroManager base + MacroCmd).
 
 ### What Phase 10 contains (built already)
 
@@ -250,11 +252,39 @@ foundation + failsafe overhaul/HUD corrections described above).
 - **SignInputHandler** — reflectively sets `signText` List line 0 to a
   `Component.literal(value)`, then reflectively invokes `sign.onDone()` via
   `mc.execute(...)` on the next tick (no keyPress hack).
-- **AuctionHouseExecutor** state machine — buy path complete:
-  IDLE→OPEN_AH→TOGGLE_BIN→SEARCH→WAIT_SIGN→WAIT_RESULTS→WAIT_CONFIRM→
-  WAIT_BOUGHT→IDLE (markBought + chat success). LIST flow
-  (OPEN_MANAGE→CHOOSE_ITEM→CREATE→SET_PRICE→CLICK_CREATE→WAIT_LISTED) is
-  stubbed for the next iteration.
+- **AuctionHouseExecutor** state machine — buy + list paths complete:
+  - Buy: IDLE→OPEN_AH→TOGGLE_BIN→SEARCH→WAIT_SIGN→WAIT_RESULTS→WAIT_CONFIRM→
+    WAIT_BOUGHT (markBought → auto-transition to OPEN_MANAGE).
+  - List: OPEN_MANAGE→WAIT_MANAGE→CLICK_CREATE_HEAD→WAIT_CHOOSE_ITEM→
+    WAIT_CREATE→SET_PRICE (findPriceSign scans for "Buy it now"/"Price" lore;
+    sign entry via SignInputHandler)→WAIT_PRICE_SIGN→WAIT_PRICE_SUBMIT→
+    CLICK_LIST→WAIT_LISTED→IDLE (markListed, chat success).
+  - list(Order) entry point (for HOLDING items).
+- **Bazaar interactor (Phase 10 #4):** `BazaarNavigator` (`/bz`, title
+  detection), `BazaarGUI` (Page enum CATALOG/CATEGORY/PRODUCT/QUANTITY_SIGN/
+  PRICE_SIGN/CONFIRM_BUY/CONFIRM_SELL/MANAGE_ORDERS; findBuyInstantly/
+  findSellInstantly/findCreateBuyOrder/findCreateSellOrder/findManageOrders/
+  findBack/findConfirm/findProduct; click helpers), `BazaarExecutor` state
+  machine for instant buy + instant sell (OPEN_BZ → FIND_PRODUCT →
+  WAIT_PRODUCT → CLICK_INSTANT → WAIT_QUANTITY (sign for count) →
+  WAIT_CONFIRM → CLICK_CONFIRM → WAIT_DONE). Selling path chains after
+  buys through `pollToList()` queue.
+- **OrderManager** now has three queues: `buyQueue` (AH buy), `listQueue`
+  (AH list + Bazaar sell), `bazaarBuyQueue`; `enqueue(FlipCandidate)` routes
+  by FlipType (BAZAAR_SPREAD → bazaarBuyQueue, others → buyQueue). Helpers:
+  `pollToList()`, `pollToBazaarBuy()`, `enqueueBazaarBuy(Order)`.
+- **Phase 11 macro framework base:** `MacroModule` abstract class with
+  IDLE/STARTING/RUNNING/PAUSED/ON_BREAK/STOPPING/ERROR lifecycle,
+  `onStart/onTick/onStop/onBreakStart/onBreakEnd/onFailsafePause/onFailsafeResume`
+  hooks, `RepathReactionAction.DestinationProvider` registration (destX/Y/Z +
+  description), auto-pause on `FailsafeManager.areMacrosPaused()`,
+  ON_BREAK state driven by BreakScheduler.isOnBreak(). `MacroManager` registry
+  (register/all/get/active/start/stopAll/pauseAll/resumeActive/tick) wired
+  into `ClientTickDispatcher` after FailsafeManager.
+- **MacroCmd** expanded to `.z macro start <id>/stop/pause/resume/list` with
+  tab-completion enumerating registered macro ids.
+- **Brain View (GuiEngine)** flipper block shows AH executor state, BZ
+  executor state, and busy flag.
 - **AuctionHouseInteractor** delegates to `AuctionHouseExecutor` and exposes
   `pump(OrderManager)` so FlipEngine hands BUYING/NAVIGATING orders into it.
 - **FlipEngine.tick()** calls `ah.pump(orders)` after driving the legacy
@@ -272,52 +302,62 @@ foundation + failsafe overhaul/HUD corrections described above).
 
 ### What is NOT done yet (next up)
 
-1. **AuctionHouseExecutor listing flow** — OPEN_MANAGE → CHOOSE_ITEM (click
-   held item or click gold block head) → CREATE → SET_PRICE (sign handler
-   with BIN price formatted without commas, K/M suffix supported? Check
-   Hypixel AH format — need RESEARCH) → CLICK_CREATE (confirm via
-   `findCreateButton`) → WAIT_LISTED (detect return to Manage Auctions or
-   browser with item gone from cursor). Add `list(Order)` method alongside
-   `buy(Order)` and drive it from `OrderManager.pollToList()` after
-   `markBought`.
-2. **BazaarInteractor GUI state machine** (Phase 10 follow-up, per flipper
-   ordering #4): `/bz`, click buy/sell order, fill price+quantity via sign,
-   confirm, collect fills. Same primitives as AH (GUIParser/GUIClickExecutor/
-   SignInputHandler/GUIItemMatcher/DelayManager). Need RESEARCH for exact
-   Bazaar GUI titles and slot positions.
-3. **Brain View panel** (`DebugBrainPanel` / `GuiEngine`) — add AH executor
-   state line; widen panel if needed; already 400x290 for flipper block,
-   add reaction-state to the failsafe block.
-4. **Phase 11: Macro framework base** (next major phase) —
-   - `MacroModule` abstract class with start/pause/resume/stop/break
-     lifecycle, auto-pause on FailsafeStrictness >= PAUSE (but NOT on the
-     reactive tiers WIGGLE_REACT/COMBAT/REMOVE_OBSTRUCTION/REPATH/
-     INSTANT_RESPAWN), auto-resume after successful REPATH.
-   - `MacroDestinationProvider` registration to `RepathReactionAction` so
-     failsafe repaths go back to the macro anchor (x,y,z + description).
-   - BreakScheduler integration across all macros (already exists, just
-     needs per-module hook).
-   - Inventory snapshot helper for "is the target item in hand" checks.
-   - Cross-server pathfinding: jump-pad / NPC interaction state machine for
-     travelling between hubs/islands when REPATH lands us in the wrong spot.
-5. **Phase 12: Crafting macro module** — open crafting table, click recipe
+1. **Bazaar order placement (limit buys/sells, fill collection):** instant
+   buy/sell done; create buy/sell orders via signs (quantity + price) and
+   fill/collect flows still need wiring. `BazaarGUI.findCreateBuyOrder/
+   findCreateSellOrder` exist but executor doesn't walk those states yet.
+2. **Brain View panel** (`DebugBrainPanel` / `GuiEngine`) — now shows AH/BZ
+   state + busy, but still needs the reaction-state added to the failsafe
+   block (reactionState is already in FailsafeDebugData). Panel size is 400x290.
+3. **Phase 11 follow-up:**
+   - Cross-server pathfinding: jump-pad / NPC interaction state machine
+     (walk to NPC, click, select destination in chat/GUI, wait for world
+     change) so REPATH can travel between hubs/islands.
+   - Inventory snapshot helper for "is the target item in hand/cursor"
+     checks (used by CHOOSE_ITEM step + farming tool validation).
+   - Register at least one concrete MacroModule (a stub idle/test module)
+     so `.z macro start` can be smoke-tested.
+4. **Phase 12: Crafting macro module** — open crafting table, click recipe
    in NEU-style recipe book or arrange manually, pull from / push to
    inventory, use RecipeDatabase + RecipeCache already built in Phase 8/9.
-6. **Phase 13: Farming macro** — angle-based row walking, block break
+5. **Phase 13: Farming macro** — angle-based row walking, block break
    (pumpkin/melon/cane/cocoa/wheat/mushroom/cactus/potato/carrot), pest
    detection (chat pattern), Jacob's Contest tracker (chat + scoreboard),
-   FarmingStatsPanel populated with real counter/crops-per-min/blocks-s/
-   farming-XP-per-hour/farming-level-progress; dynamic icon set via
-   `FarmingStatsPanel.setActiveMacro(...)`.
-7. **Phase 14: Mining macro** — MiningStatsPanel, route-based mining (Mithril/
+   populate FarmingStatsPanel with real counter/crops-per-min/blocks-s/
+   farming-XP-per-hour/farming-level-progress, call
+   `FarmingStatsPanel.setActiveMacro(icon, activity, skill)` on start.
+6. **Phase 14: Mining macro** — MiningStatsPanel, route-based mining (Mithril/
    Gemstone/Nml/Glacite), powder/h rates, chest looter, comms.
-8. **Phase 15: Combat macro** — GhostProfit-style CombatProfitPanel driven
-   by real drop events, ghost/enderman/dragon combat (aim via ZenithEyes
-   COMBAT priority), kill-aura-style left click using KeySimulator, Magic
-   Find tracking, Bestiary.
-9. **Phases 16–19:** fishing/foraging, events (jerry/diana/spooky), hunting,
+7. **Phase 15: Combat macro** — CombatProfitPanel driven by real drop
+   events, ghost/enderman/dragon combat (aim via ZenithEyes COMBAT priority,
+   swing via KeySimulator.setAttack), Magic Find tracking, Bestiary, Loot
+   Collector.
+8. **Phases 16–19:** fishing/foraging, events (jerry/diana/spooky), hunting,
    rift, museum, misc.
-10. **Phase 20:** Discord webhook, final polish, ProGuard obfuscation.
+9. **Phase 20:** Discord webhook, final polish, ProGuard obfuscation.
+
+### Key methods to know
+
+- `ZenithEyes.requestRotation(RotationRequest)` — builder API: `.yaw/.pitch/
+  .priority(Priority)/.durationMs(long)/.profile(String id)/.tag(String)/
+  .tracking(bool)/.preemptible(bool)/.onComplete(cb).build()`. Priority enum:
+  BACKGROUND/WANDER/MACRO/COMBAT/MACRO_TICK/FAILSAFE.
+- `ZenithPath.requestPath(PathRequest)` — builder: `.from(x,y,z)/.to(x,y,z)/
+  .mode(PathMode)/.allowEtherwarp(bool)/.allowSprint(bool)/.stopDistance(double)/
+  .maxComputeMs(long)/.tag(String).build()` — from/to take three doubles NOT Vec3.
+- `KeySimulator` methods: `setForward/Back/Left/Right/Jump/Sneak/Sprint/Use/
+  Attack(boolean)`, `halt()`. No `leftClick()`/`leftClickHold()`.
+- `GUIClickExecutor`: `leftClick/rightClick/shiftClick(slot)` with bits-block
+  and DelayManager gating.
+- `SignInputHandler`: `requestType(text)` types into next sign screen;
+  reflectively sets signText then calls onDone() — don't use keyPress.
+- `FailsafeManager`: `trigger(type, reason, severity)`/`clear(type)`/
+  `failAll(reason)`/`areMacrosPaused()`.
+- `BanActionHandler`: `sendIsland()` = `/is` (NOT `/home`), `sendHub()`,
+  `respawn()`, `disconnect(reason)`, `sendWarp(name)`.
+- Macro lifecycle: `start()`/`stop(reason)`/`pause(reason)`/`resume()`;
+  override `onStart/onTick/onStop/onBreakStart/onBreakEnd/onFailsafePause/
+  onFailsafeResume`; implement `destX/Y/Z/description` for RepathReactionAction.
 
 ### HUD panel next steps
 

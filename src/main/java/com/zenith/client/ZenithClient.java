@@ -17,6 +17,10 @@ import com.zenith.client.flipping.FlipEngine;
 import com.zenith.client.gui.GuiEngine;
 import com.zenith.client.gui.hud.HudManager;
 import com.zenith.client.keybind.KeybindManager;
+import com.zenith.client.macro.MacroManager;
+import com.zenith.client.macro.farming.MelonMacro;
+import com.zenith.client.macro.farming.PumpkinMacro;
+import com.zenith.client.macro.test.IdleMacro;
 import com.zenith.client.world.WorldHook;
 import net.fabricmc.api.ClientModInitializer;
 import org.slf4j.Logger;
@@ -87,6 +91,12 @@ public class ZenithClient implements ClientModInitializer {
         // blocked paths break the obstruction, death respawns instantly and
         // teleports re-pathfind to the macro anchor rather than stopping.
         FailsafeManager.getInstance().init();
+
+        // Phase 11: Macro framework — register test + initial farming modules.
+        // Real modules fleshed out in Phases 13-19.
+        MacroManager.getInstance().register(IdleMacro.INSTANCE);
+        MacroManager.getInstance().register(MelonMacro.INSTANCE);
+        MacroManager.getInstance().register(PumpkinMacro.INSTANCE);
 
         // Phase 8: API/data layer — NEU items/recipes/constants, Moulberry lowestbin,
         // Coflnet bazaar/mayor/flips, rate limits, scrapers, wiki, update checker.
