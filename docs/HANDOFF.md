@@ -479,4 +479,4 @@ field names), and the scoreboard/tab/bossbar entries R002/R003/R005.
 The short-term goal is to get Phases 10–13 to a runnable state where
 farming + AH flipping actually work end-to-end in a dev environment. Good luck.
 
-**Latest commit on `arena/019f56d8-idioticplan`:** `950501d` — DevDataHarvester + DevDataMacro (autonomous dev-data tour macro). See `docs/DEVDATA.md`.
+**Latest commit on `arena/019f56d8-idioticplan`:** `7405200` — DevDataHarvester + DevDataMacro (autonomous dev-data tour macro). See `docs/DEVDATA.md`.
