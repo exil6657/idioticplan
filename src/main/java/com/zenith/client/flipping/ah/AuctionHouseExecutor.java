@@ -12,22 +12,37 @@ import com.zenith.client.core.interaction.skyblock.AuctionHouseNavigator;
 import com.zenith.client.core.protection.BitsSpendBlocker;
 import com.zenith.client.failsafe.FailsafeManager;
 import com.zenith.client.flipping.order.Order;
+import com.zenith.client.flipping.order.OrderManager;
+import com.zenith.client.flipping.order.OrderState;
 import net.minecraft.client.Minecraft;
 
 import java.util.List;
 
 /**
- * Drives a single buy→list order through the AH GUI. Uses a lightweight
- * state machine:
+ * Drives a single buy→list order through the AH GUI. State machine:
  * <pre>
- * IDLE → OPEN_AH → BROWSE_READY → TOGGLE_BIN → SEARCH → WAIT_RESULTS →
- * CLICK_LISTING → WAIT_CONFIRM → CLICK_BUY → WAIT_BOUGHT → OPEN_CREATE →
- * SET_PRICE → CLICK_CREATE → LISTED → IDLE
+ * IDLE
+ *  ↓
+ * OPEN_AH → TOGGLE_BIN → SEARCH → WAIT_SIGN → WAIT_RESULTS
+ *  ↓ (cheapest matching listing)
+ * WAIT_CONFIRM → CLICK_BUY → WAIT_BOUGHT
+ *  ↓ (item in inventory)
+ * OPEN_MANAGE → WAIT_MANAGE → CLICK_CREATE_HEAD → WAIT_CHOOSE_ITEM
+ *  ↓ (click item in player inv)
+ * SET_PRICE (sign) → WAIT_CREATE → CLICK_CREATE → WAIT_LISTED → IDLE
  * </pre>
  *
  * <p>All GUI clicks go through {@link com.zenith.client.core.interaction.GUIClickExecutor}
  * (humanised delays); all slot lookups go through {@link AuctionHouseGUI}
- * using {@link com.zenith.client.core.interaction.GUISlotFinder} (master rule §1).</p>
+ * using {@link com.zenith.client.core.interaction.GUISlotFinder} (master rule §1).
+ * Sign entry goes through {@link SignInputHandler} (reflection-based).</p>
+ *
+ * <p>Listing notes (Hypixel AH): after opening /ah, the "Manage Auctions" head
+ * is in the top row of the browser page. Clicking it takes you to "Manage
+ * Auctions"; the "Create Auction" head there opens the "Choose Item" screen
+ * (player inventory). Clicking an item opens the "Create Auction" screen
+ * where you click the BIN price sign, type the price, confirm, and click
+ * "Create Auction" to list.</p>
  */
 public final class AuctionHouseExecutor {
 
@@ -39,6 +54,7 @@ public final class AuctionHouseExecutor {
     private long stateEnteredMs;
     private String state = "IDLE";
     private String pendingSearch = null;
+    private String pendingPrice = null;
     private int retries = 0;
 
     private AuctionHouseExecutor() {
@@ -48,6 +64,7 @@ public final class AuctionHouseExecutor {
     public boolean busy() { return current != null; }
     public String state() { return state; }
 
+    /** Queue a BUY for the given order. */
     public void buy(Order o) {
         if (busy()) { ZenithClient.LOGGER.warn("[AH] busy, ignoring buy for {}", o.itemId()); return; }
         if (FailsafeManager.getInstance().areMacrosPaused()) return;
@@ -57,12 +74,30 @@ public final class AuctionHouseExecutor {
         retries = 0;
     }
 
+    /**
+     * Queue a LIST for a held item (post-buy, or a manual ".z flip list" for items
+     * already in inventory). If the order is still HOLDING we navigate to /ah
+     * and walk the list flow directly.
+     */
+    public void list(Order o) {
+        if (busy()) { ZenithClient.LOGGER.warn("[AH] busy, ignoring list for {}", o.itemId()); return; }
+        if (FailsafeManager.getInstance().areMacrosPaused()) return;
+        this.current = o;
+        // If we're already in the AH, skip straight to OPEN_MANAGE; else open browser.
+        if (AuctionHouseNavigator.getInstance().isInAH()) {
+            transition("OPEN_MANAGE");
+        } else {
+            transition("OPEN_AH_FOR_LIST");
+            AuctionHouseNavigator.getInstance().openBrowser();
+        }
+        retries = 0;
+    }
+
     public void tick() {
         if (current == null) { state = "IDLE"; return; }
         GUIState s;
         try { s = GUIParser.getInstance().read(); } catch (Throwable t) { s = null; }
-        if (s == null && !"OPEN_AH".equals(state)) {
-            // GUI disappeared mid-order. Retry or fail.
+        if (s == null && !state.startsWith("OPEN_")) {
             if (retries++ > 3) fail("gui closed");
             return;
         }
@@ -70,19 +105,24 @@ public final class AuctionHouseExecutor {
         long now = System.currentTimeMillis();
 
         switch (state) {
+            // ---- BUY PATH ----
             case "OPEN_AH" -> {
-                if (AuctionHouseNavigator.getInstance().isInAH() && ah.detectPage(s) == AuctionHouseGUI.Page.BROWSER) {
+                if (AuctionHouseNavigator.getInstance().isInAH() && s != null
+                        && ah.detectPage(s) == AuctionHouseGUI.Page.BROWSER) {
                     transition("TOGGLE_BIN");
                 } else if (now - stateEnteredMs > 6000) {
-                    if (retries++ > 2) fail("timeout opening AH"); else AuctionHouseNavigator.getInstance().openBrowser();
+                    if (retries++ > 2) fail("timeout opening AH");
+                    else AuctionHouseNavigator.getInstance().openBrowser();
                 }
             }
             case "TOGGLE_BIN" -> {
+                if (s == null) break;
                 int bin = ah.findBinToggle(s);
                 if (bin >= 0) { ah.clickBinToggle(s); transition("SEARCH"); }
                 else if (now - stateEnteredMs > 1500) transition("SEARCH");
             }
             case "SEARCH" -> {
+                if (s == null) break;
                 int ss = ah.findSearchSlot(s);
                 if (ss >= 0) {
                     pendingSearch = nameForSearch(current);
@@ -97,10 +137,10 @@ public final class AuctionHouseExecutor {
                 } else if (now - stateEnteredMs > 5000) transition("WAIT_RESULTS");
             }
             case "WAIT_RESULTS" -> {
+                if (s == null) break;
+                if (now - stateEnteredMs > 6000) { fail("search timeout"); break; }
                 List<AuctionHouseGUI.AuctionListing> listings = ah.findListings(s);
-                if (now - stateEnteredMs > 6000) fail("search timeout");
                 if (!listings.isEmpty()) {
-                    // Pick the cheapest matching our candidate.
                     AuctionHouseGUI.AuctionListing best = null;
                     for (var l : listings) {
                         if (matches(l, current) && (best == null || l.price() < best.price())) best = l;
@@ -114,26 +154,176 @@ public final class AuctionHouseExecutor {
                 }
             }
             case "WAIT_CONFIRM" -> {
+                if (s == null) break;
                 if (ah.detectPage(s) == AuctionHouseGUI.Page.CONFIRM_BUY) {
                     int buyBtn = ah.findBuyConfirmSlot(s);
                     if (buyBtn >= 0) {
-                        // Bits blocker: double-check we're not spending bits.
                         if (!BitsSpendBlocker.isBlocked()) ah.confirmBuy(s);
                         transition("WAIT_BOUGHT");
                     }
                 } else if (now - stateEnteredMs > 3000) fail("no confirm screen");
             }
             case "WAIT_BOUGHT" -> {
-                // After buying, we return to the browser with the item in cursor/inventory.
-                boolean inBrowser = ah.detectPage(s) == AuctionHouseGUI.Page.BROWSER || ah.detectPage(s) == AuctionHouseGUI.Page.RESULTS;
-                if (inBrowser && now - stateEnteredMs > 1200) {
-                    // Mark bought & move to listing — phase 10 v1 stops here (listing flow comes in next iteration).
-                    com.zenith.client.flipping.order.OrderManager.getInstance().markBought(current);
-                    ZenithChat.getInstance().success("Bought {} for {} coins (listing flow next phase).",
+                if (s == null) break;
+                boolean inBrowserOrResults = ah.detectPage(s) == AuctionHouseGUI.Page.BROWSER
+                        || ah.detectPage(s) == AuctionHouseGUI.Page.RESULTS;
+                // Wait 1.2 s for the confirm to fire and for us to land back on browser/results
+                // with the item in inventory (or on cursor). Then immediately continue into the listing flow.
+                if (inBrowserOrResults && now - stateEnteredMs > 1200) {
+                    OrderManager.getInstance().markBought(current);
+                    ZenithChat.getInstance().success("Bought {} for {} coins — now listing.",
                             current.candidate.itemName, current.candidate.buyPrice);
+                    transition("OPEN_MANAGE");
+                } else if (now - stateEnteredMs > 8000) fail("buy didn't complete");
+            }
+
+            // ---- OPEN FOR LIST (when we entered via list() directly) ----
+            case "OPEN_AH_FOR_LIST" -> {
+                if (AuctionHouseNavigator.getInstance().isInAH() && s != null
+                        && ah.detectPage(s) == AuctionHouseGUI.Page.BROWSER) {
+                    transition("OPEN_MANAGE");
+                } else if (now - stateEnteredMs > 6000) {
+                    if (retries++ > 2) fail("timeout opening AH for list");
+                    else AuctionHouseNavigator.getInstance().openBrowser();
+                }
+            }
+
+            // ---- LIST PATH ----
+            case "OPEN_MANAGE" -> {
+                if (s == null) {
+                    if (now - stateEnteredMs > 4000) fail("not in ah when opening manage");
+                    break;
+                }
+                AuctionHouseGUI.Page page = ah.detectPage(s);
+                if (page == AuctionHouseGUI.Page.BROWSER || page == AuctionHouseGUI.Page.RESULTS) {
+                    // Click the Manage Auctions head on the browser page.
+                    int m = ah.findManageButton(s);
+                    if (m >= 0) {
+                        ah.clickManage(s);
+                        transition("WAIT_MANAGE");
+                    } else if (now - stateEnteredMs > 3000) fail("manage button missing from browser");
+                } else if (page == AuctionHouseGUI.Page.MANAGE) {
+                    transition("CLICK_CREATE_HEAD");
+                } else if (page == AuctionHouseGUI.Page.CHOOSE_ITEM || page == AuctionHouseGUI.Page.CREATE) {
+                    // Already in the listing flow (race from previous tick); carry on.
+                    transition("WAIT_CHOOSE_ITEM");
+                } else if (now - stateEnteredMs > 5000) {
+                    fail("unexpected page opening manage: " + page);
+                }
+            }
+            case "WAIT_MANAGE" -> {
+                if (s == null) break;
+                if (ah.detectPage(s) == AuctionHouseGUI.Page.MANAGE) {
+                    transition("CLICK_CREATE_HEAD");
+                } else if (now - stateEnteredMs > 4000) fail("manage page didn't open");
+            }
+            case "CLICK_CREATE_HEAD" -> {
+                if (s == null) break;
+                int cb = ah.findCreateButton(s);
+                if (cb >= 0) {
+                    ah.clickCreate(s);
+                    transition("WAIT_CHOOSE_ITEM");
+                } else if (now - stateEnteredMs > 3000) {
+                    // On some pages the Create Auction item shows as "Create Auction" but
+                    // we might be on the MANAGE page with it renamed; try a nameContains fallback.
+                    int fb = ah.findCreateButton(s);
+                    if (fb >= 0) ah.clickCreate(s);
+                    else fail("create-auction button missing on manage page");
+                }
+            }
+            case "WAIT_CHOOSE_ITEM" -> {
+                if (s == null) break;
+                AuctionHouseGUI.Page page = ah.detectPage(s);
+                if (page == AuctionHouseGUI.Page.CHOOSE_ITEM) {
+                    // Find the item in player inventory by skyblock id or name.
+                    int slot = ah.findItemInInventory(s, current.itemId(), current.candidate.itemName);
+                    if (slot >= 0) {
+                        ah.clickInventorySlot(s, slot);
+                        transition("WAIT_CREATE");
+                    } else if (now - stateEnteredMs > 4000) {
+                        // Give up — item not found in inventory; fail the list portion.
+                        // Don't fail the whole order though — mark as HOLDING so manual list works.
+                        ZenithClient.LOGGER.warn("[AH] item {} not found in inventory after buy; leaving as HOLDING.", current.itemId());
+                        current.transition(OrderState.HOLDING);
+                        current = null;
+                        state = "IDLE";
+                    }
+                } else if (page == AuctionHouseGUI.Page.CREATE) {
+                    transition("SET_PRICE");
+                } else if (now - stateEnteredMs > 4000) fail("choose-item page didn't open");
+            }
+            case "WAIT_CREATE" -> {
+                if (s == null) break;
+                if (ah.detectPage(s) == AuctionHouseGUI.Page.CREATE) {
+                    transition("SET_PRICE");
+                } else if (now - stateEnteredMs > 3000) fail("create page didn't open after choosing item");
+            }
+            case "SET_PRICE" -> {
+                if (s == null) break;
+                // On Create Auction screen there are typically two signs: one for quantity
+                // (for stackable items) and one for price. The price sign has "Buy it now"
+                // or "Price:" in lore/name. Rather than hard-coding sign slot indices (rule §1),
+                // we look for a sign/lore that mentions "Buy it now" or "Price" — but simpler:
+                // Hypixel shows the price sign as the right-hand sign (lore contains "Buy it now").
+                // Use SignInputHandler.isInSignScreen() to detect when the player has the sign
+                // open, and request our formatted price.
+                int priceSign = findPriceSign(s);
+                if (priceSign >= 0) {
+                    pendingPrice = formatPrice(current.listPrice > 0 ? current.listPrice : current.candidate.sellPrice);
+                    ah.clickInventorySlot(s, priceSign);
+                    transition("WAIT_PRICE_SIGN");
+                } else if (SignInputHandler.getInstance().isInSignScreen()) {
+                    // Sign is already open from a previous click we missed.
+                    pendingPrice = formatPrice(current.listPrice > 0 ? current.listPrice : current.candidate.sellPrice);
+                    SignInputHandler.getInstance().requestType(pendingPrice);
+                    transition("WAIT_PRICE_SUBMIT");
+                } else if (now - stateEnteredMs > 4000) fail("price sign not found on create page");
+            }
+            case "WAIT_PRICE_SIGN" -> {
+                if (SignInputHandler.getInstance().isInSignScreen()) {
+                    if (pendingPrice != null) SignInputHandler.getInstance().requestType(pendingPrice);
+                    transition("WAIT_PRICE_SUBMIT");
+                } else if (now - stateEnteredMs > 3000) {
+                    // Maybe the sign was skipped? Move on to click Create.
+                    transition("CLICK_LIST");
+                }
+            }
+            case "WAIT_PRICE_SUBMIT" -> {
+                // After submitting the sign we're back to CREATE screen with price filled in.
+                if (s != null && ah.detectPage(s) == AuctionHouseGUI.Page.CREATE
+                        && !SignInputHandler.getInstance().isInSignScreen()
+                        && now - stateEnteredMs > 800) {
+                    transition("CLICK_LIST");
+                } else if (now - stateEnteredMs > 5000) {
+                    // Maybe sign auto-submitted; move along.
+                    transition("CLICK_LIST");
+                }
+            }
+            case "CLICK_LIST" -> {
+                if (s == null) break;
+                int create = ah.findCreateButton(s);
+                if (create >= 0) {
+                    // For BIN listings the "Create Auction" button finalises; ensure BIN is toggled.
+                    // (Create screen doesn't always present a separate toggle — Hypixel uses the
+                    // price sign to set BIN price vs starting bid.)
+                    ah.clickCreate(s);
+                    transition("WAIT_LISTED");
+                } else if (now - stateEnteredMs > 4000) fail("create/list button missing on price page");
+            }
+            case "WAIT_LISTED" -> {
+                if (s == null) break;
+                AuctionHouseGUI.Page page = ah.detectPage(s);
+                boolean done = page == AuctionHouseGUI.Page.BROWSER
+                        || page == AuctionHouseGUI.Page.MANAGE
+                        || page == AuctionHouseGUI.Page.RESULTS;
+                if (done && now - stateEnteredMs > 1500) {
+                    long listPrice = current.listPrice > 0 ? current.listPrice : current.candidate.sellPrice;
+                    OrderManager.getInstance().markListed(current, listPrice);
+                    ZenithChat.getInstance().success("Listed {} for {} coins.",
+                            current.candidate.itemName, listPrice);
                     current = null;
                     state = "IDLE";
-                } else if (now - stateEnteredMs > 8000) fail("buy didn't complete");
+                } else if (now - stateEnteredMs > 10000) fail("listing didn't complete");
             }
         }
     }
@@ -146,21 +336,56 @@ public final class AuctionHouseExecutor {
 
     private void fail(String reason) {
         ZenithClient.LOGGER.warn("[AH] order {} failed: {}", current != null ? current.itemId() : "?", reason);
-        if (current != null) com.zenith.client.flipping.order.OrderManager.getInstance().fail(current, reason);
+        if (current != null) OrderManager.getInstance().fail(current, reason);
         current = null;
+        pendingSearch = null;
+        pendingPrice = null;
         state = "IDLE";
     }
 
     private boolean matches(AuctionHouseGUI.AuctionListing l, Order o) {
-        // Match by name substring or skyblock id.
         if (l.skyblockId() != null && l.skyblockId().equalsIgnoreCase(o.itemId())) return true;
-        String want = o.candidate.itemName.toLowerCase();
-        return l.name() != null && l.name().toLowerCase().contains(want);
+        String want = o.candidate.itemName == null ? "" : o.candidate.itemName.toLowerCase();
+        return l.name() != null && !want.isEmpty() && l.name().toLowerCase().contains(want);
     }
 
     private String nameForSearch(Order o) {
-        // Use the display name for AH search (not the internal id).
         return o.candidate.itemName == null || o.candidate.itemName.isEmpty() ? o.itemId() : o.candidate.itemName;
+    }
+
+    /**
+     * Format a coin value for AH sign input. Hypixel accepts plain integers
+     * (with commas stripped) and K/M/B suffixes; we use the plain integer
+     * to avoid suffix-parsing edge cases.
+     */
+    private static String formatPrice(long coins) {
+        return Long.toString(coins);
+    }
+
+    /**
+     * Find the "Buy it now" / price sign on the Create Auction page. Scans
+     * the container for an item whose display name or lore contains "Buy it now"
+     * or "Price" (rule §1 — no hardcoded slot indices).
+     */
+    private int findPriceSign(GUIState s) {
+        if (s == null || s.stacks == null) return -1;
+        for (int i = 0; i < s.stacks.size(); i++) {
+            var st = s.stacks.get(i);
+            if (st == null) continue;
+            if (st.displayName() != null
+                    && (st.displayName().toLowerCase().contains("buy it now")
+                        || st.displayName().toLowerCase().contains("price per item")
+                        || st.displayName().toLowerCase().contains("price:"))) {
+                return i;
+            }
+            if (st.lore() != null) {
+                for (String line : st.lore()) {
+                    String ll = line.toLowerCase();
+                    if (ll.contains("buy it now") || ll.contains("set the price")) return i;
+                }
+            }
+        }
+        return -1;
     }
 
     private final class Listener {

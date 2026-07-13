@@ -151,6 +151,13 @@ public final class GuiEngine {
                 x+8, ty, flipColor, false); ty += 11;
         ctx.drawString(String.format("  scans=%d queued=%d BIN=%d bazaar=%d break=%b",
                 flips.scans, flips.candidateQueueDepth, flips.binItems, flips.bazaarItems, flips.onBreak),
+                x+8, ty, t.textSecondary, false); ty += 11;
+        String ahState = com.zenith.client.flipping.ah.AuctionHouseExecutor.getInstance().state();
+        String bzState = com.zenith.client.flipping.bazaar.BazaarExecutor.getInstance().state();
+        ctx.drawString(String.format("  AH=%s BZ=%s busy=%b",
+                        ahState, bzState,
+                        com.zenith.client.flipping.ah.AuctionHouseExecutor.getInstance().busy()
+                                || com.zenith.client.flipping.bazaar.BazaarExecutor.getInstance().busy()),
                 x+8, ty, t.textSecondary, false); ty += 14;
 
         ctx.drawString("Press .z debug brain to toggle", x+8, y+panelH-12, t.textSecondary, false);

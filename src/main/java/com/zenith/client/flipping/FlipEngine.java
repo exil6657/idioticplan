@@ -12,6 +12,7 @@ import com.zenith.client.failsafe.FailsafeManager;
 import com.zenith.client.flipping.ah.AHCraftFlipEngine;
 import com.zenith.client.flipping.ah.AHSalesTracker;
 import com.zenith.client.flipping.ah.AuctionHouseInteractor;
+import com.zenith.client.flipping.bazaar.BazaarExecutor;
 import com.zenith.client.flipping.bazaar.BazaarFlipEngine;
 import com.zenith.client.flipping.break_.BreakScheduler;
 import com.zenith.client.flipping.break_.IdleBehavior;
@@ -81,6 +82,7 @@ public final class FlipEngine {
     private final ProfitTracker profit = ProfitTracker.getInstance();
     private final AHSalesTracker sales = AHSalesTracker.getInstance();
     private final FillMonitor fillMonitor = FillMonitor.getInstance();
+    private final BazaarExecutor bz = BazaarExecutor.getInstance();
 
     private FlipEngine() {}
 
@@ -140,7 +142,9 @@ public final class FlipEngine {
         orders.tick();
         fillMonitor.tick();
         ah.tick();
-        ah.pump(orders); // hand PROPOSED/NAVIGATING buy orders to AH executor if idle
+        ah.pump(orders); // hand QUEUED_TO_BUY / HOLDING orders to AH executor if idle
+        bz.tick();
+        pumpBazaar();
         ahCraft.tick();
 
         // 3. Consume up to 2 candidates from the scanner queue.
@@ -153,6 +157,15 @@ public final class FlipEngine {
         // 5. NPC flips.
         var nc = npc.pollCandidate();
         if (nc != null && budget.canBuy(nc.buyPrice)) orders.enqueue(nc);
+    }
+
+    private void pumpBazaar() {
+        if (bz.busy()) return;
+        // Prefer selling held items first.
+        Order sell = orders.pollToList();
+        if (sell != null && sell.type() == FlipType.BAZAAR_SPREAD) { bz.instantSell(sell); return; }
+        Order buy = orders.pollToBazaarBuy();
+        if (buy != null) bz.instantBuy(buy);
     }
 
     private void slowTick() {

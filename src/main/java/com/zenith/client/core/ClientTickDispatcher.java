@@ -10,6 +10,7 @@ import com.zenith.client.engine.path.learning.MovementLearner;
 import com.zenith.client.core.interaction.GUIInteractionEngine;
 import com.zenith.client.failsafe.FailsafeManager;
 import com.zenith.client.flipping.FlipEngine;
+import com.zenith.client.macro.MacroManager;
 import com.zenith.client.world.World;
 
 /**
@@ -38,6 +39,7 @@ public final class ClientTickDispatcher {
         InputEngine.getInstance().tick();
         MovementLearner.getInstance().tick();
         FailsafeManager.getInstance().tick();
+        MacroManager.getInstance().tick();
         FlipEngine.getInstance().tick();
     }
 }

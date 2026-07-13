@@ -23,7 +23,9 @@ public final class OrderManager {
     public static OrderManager getInstance() { return INSTANCE; }
 
     private final List<Order> active = new CopyOnWriteArrayList<>();
-    private final Deque<Order> buyQueue = new ArrayDeque<>();
+    private final Deque<Order> buyQueue = new ArrayDeque<>();     // AH buy
+    private final Deque<Order> listQueue = new ArrayDeque<>();    // AH list / bazaar sell
+    private final Deque<Order> bazaarBuyQueue = new ArrayDeque<>(); // Bazaar instant buy
 
     private OrderManager() {}
 
@@ -50,17 +52,33 @@ public final class OrderManager {
             Order o = new Order(c);
             o.transition(OrderState.QUEUED_TO_BUY);
             active.add(o);
-            buyQueue.offer(o);
-            ZenithClient.LOGGER.info("[Order] Queued {} buy@{} list@{} profit={}", c.itemId, c.buyPrice, c.sellPrice, c.expectedProfit);
+            // Route by flip type: Bazaar spreads go to the Bazaar executor; AH / NPC / Craft go to AH buy queue.
+            switch (c.type) {
+                case BAZAAR_SPREAD -> bazaarBuyQueue.offer(o);
+                default           -> buyQueue.offer(o);
+            }
+            ZenithClient.LOGGER.info("[Order] Queued {} ({}) buy@{} list@{} profit={}",
+                    c.itemId, c.type, c.buyPrice, c.sellPrice, c.expectedProfit);
             return true;
         }
     }
 
     public Order pollToBuy() { return buyQueue.poll(); }
+    public Order pollToList() { return listQueue.poll(); }
+    public Order pollToBazaarBuy() { return bazaarBuyQueue.poll(); }
+
+    public void enqueueBazaarBuy(Order o) {
+        if (o == null) return;
+        o.transition(OrderState.QUEUED_TO_BUY);
+        active.add(o);
+        bazaarBuyQueue.offer(o);
+    }
 
     public void markBought(Order o) {
         BudgetManager.getInstance().config().recordBuy(o.buyPrice);
         o.transition(OrderState.HOLDING);
+        // AH buys list on the AH; Bazaar buys re-list as instant bazaar sells.
+        listQueue.offer(o);
     }
 
     public void markListed(Order o, long listPrice) {
@@ -89,6 +107,8 @@ public final class OrderManager {
     public void failAll(String reason) {
         for (Order o : new ArrayList<>(active)) fail(o, reason);
         buyQueue.clear();
+        listQueue.clear();
+        bazaarBuyQueue.clear();
     }
 
     public void tick() {

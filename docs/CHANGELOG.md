@@ -4,6 +4,47 @@ All notable changes to the Zenith Client are tracked here. The format is
 loosely based on Keep a Changelog; phases correspond to the 20-phase master
 roadmap.
 
+## [1.0.0] - Phase 10 iteration 2 / Phase 11 start — AH listing flow, Bazaar interactor, macro framework
+
+### Added
+- **AuctionHouseExecutor listing flow complete** — BUY → HOLDING → LIST path:
+  OPEN_MANAGE → WAIT_MANAGE → CLICK_CREATE_HEAD → WAIT_CHOOSE_ITEM →
+  WAIT_CREATE → SET_PRICE (sign via SignInputHandler) → WAIT_PRICE_SIGN →
+  WAIT_PRICE_SUBMIT → CLICK_LIST → WAIT_LISTED. Uses rule §1 slot finders;
+  finds the Manage Auctions head, Create Auction item, and item-in-inventory
+  by skyblock id/display name.
+- **AuctionHouseGUI extended:** exact "Manage Auctions" head finder,
+  findItemInInventory (player-inventory scan by skyblockId/displayName),
+  findCreateButton, clickInventorySlot helper, fixed duplicated method issue,
+  extra `Price per unit`/`Price:` lore parsing for BIN prices.
+- **AuctionHouseInteractor** exposes beginList + pump prefers listing queued
+  orders before new buys.
+- **OrderManager** now has separate queues: buyQueue (AH buy), listQueue (AH
+  list / Bazaar sell), bazaarBuyQueue; `enqueue(FlipCandidate)` routes by
+  `FlipType` (BAZAAR_SPREAD goes to bazaarBuyQueue). New helpers
+  `pollToList()`, `pollToBazaarBuy()`, `enqueueBazaarBuy(Order)`.
+- **Bazaar interactor (Phase 10 #4):** `BazaarNavigator` (`/bz` + title
+  detection), `BazaarGUI` (Page enum CATALOG/CATEGORY/PRODUCT/QUANTITY_SIGN/
+  PRICE_SIGN/CONFIRM_BUY/CONFIRM_SELL/MANAGE_ORDERS + product finder + Buy/
+  Sell-Instantly/Create-Order/Back/Confirm slot finders), `BazaarExecutor`
+  state machine for instant-buy + instant-sell (OPEN_BZ → FIND_PRODUCT →
+  WAIT_PRODUCT → CLICK_BUY/SELL_INSTANTLY → WAIT_QUANTITY → sign for count
+  → WAIT_CONFIRM → CLICK_CONFIRM → WAIT_DONE); FlipEngine.tick() drives
+  bz.tick() + pumpBazaar().
+- **Phase 11 macro framework base:** `MacroModule` abstract class
+  (IDLE/STARTING/RUNNING/PAUSED/ON_BREAK/STOPPING/ERROR lifecycle, per-tick
+  dispatch, auto-pause on FailsafeManager.areMacrosPaused(), auto-pause/resume
+  on BreakScheduler break events, RepathReactionAction.DestinationProvider
+  registration per module, releaseKeys() helper, onStart/onTick/onStop/
+  onBreakStart/onBreakEnd/onFailsafePause/onFailsafeResume hooks).
+- **MacroManager** registry (register/get/start/stopAll/pauseAll/resumeActive
+  + active() + tick()). ClientTickDispatcher calls MacroManager.tick() after
+  FailsafeManager.tick().
+- **MacroCmd** expanded: `.z macro start <id>/stop/pause/resume/list` with
+  tab-completion for macro ids.
+- **Brain View** (GuiEngine) flipper block now shows AH/BZ executor states
+  and busy flag.
+
 ## [1.0.0] - Phase 10 revision — Failsafe behaviour overhaul + HUD corrections
 
 ### Changed (per user direction)

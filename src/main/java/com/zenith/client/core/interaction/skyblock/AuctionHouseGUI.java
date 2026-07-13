@@ -16,8 +16,8 @@ import java.util.List;
  *
  * <p>Hypixel AH slot layout (54-slot double chest):
  * <ul>
- *   <li>Rows 1-4 (slots 0-35, with top hot-bar at 45-53): auction result items.</li>
- *   <li>Top bar (around slot 47-53): navigation arrows, search (gold block with anvil), sort, BIN-only toggle.</li>
+ *   <li>Rows 1–4 (slots 0–35, with hot-bar at playerInventoryStart): auction result items.</li>
+ *   <li>Top bar (around slot 47–53): navigation arrows, search (gold block with anvil), sort, BIN-only toggle.</li>
  *   <li>Close button at top-right (inventory close).</li>
  * </ul>
  * Rather than hard-coding these indices, we use GUIItemMatcher by name/lore.</p>
@@ -26,14 +26,14 @@ public final class AuctionHouseGUI {
 
     /** Identifies which AH screen the player is on. */
     public enum Page {
-        BROWSER,        // Main Auctions Browser — top-level
+        BROWSER,        // Main Auctions Browser — top-level (title "Auctions" or "Auctions Browser")
         SEARCH_SIGN,    // Typing in the sign input
-        RESULTS,        // Search results or BIN-only list
-        CONFIRM_BUY,    // "Purchase item?" confirmation
-        MANAGE,         // "Manage Auctions" / your auctions
+        RESULTS,        // Search results or BIN-only list ("Auctions: \"<query>\"" or "Search:")
+        CONFIRM_BUY,    // "Purchase item?" confirmation (title "Confirm")
+        MANAGE,         // "Manage Auctions" / "Your Auctions"
         COLLECT,        // Sold/expired — collect items/coins
         CREATE,         // "Create Auction" price entry
-        CHOOSE_ITEM,    // Pre-create item pick (inventory)
+        CHOOSE_ITEM,    // Pre-create item pick (inventory) — title "Choose Item"
         UNKNOWN
     }
 
@@ -41,7 +41,6 @@ public final class AuctionHouseGUI {
     private final GUISlotFinder finder = new GUISlotFinder();
 
     private Page lastPage = Page.UNKNOWN;
-    private String lastSearch = "";
 
     public Page detectPage(GUIState s) {
         if (s == null || s.title == null) return Page.UNKNOWN;
@@ -49,8 +48,6 @@ public final class AuctionHouseGUI {
         if (t.equals("Auctions") || t.equals("Auctions Browser")) return Page.BROWSER;
         if (t.equals("Confirm")) return Page.CONFIRM_BUY;
         if (t.equals("Manage Auctions") || t.equals("Your Auctions")) return Page.MANAGE;
-        // Search results page title is e.g. `Auctions: "Diamond"` — treat search hits as RESULTS
-        // only if we got here via a search (caller distinguishes RESULTS vs MANAGE contextually).
         if (t.startsWith("Auctions:") || t.startsWith("Search:")) return Page.RESULTS;
         if (t.equals("Create Auction")) return Page.CREATE;
         if (t.equals("Choose Item")) return Page.CHOOSE_ITEM;
@@ -58,12 +55,12 @@ public final class AuctionHouseGUI {
         return Page.UNKNOWN;
     }
 
-    /** Finds the search button (named "Search"). */
+    /** Finds the search button (display name contains "Search"). */
     public int findSearchSlot(GUIState s) {
         return finder.findFirst(GUIItemMatcher.nameContains("Search"), s);
     }
 
-    /** Finds the BIN-only toggle (lore mentions "Show only"). */
+    /** Finds the BIN-only toggle (lore mentions "BIN Only"). */
     public int findBinToggle(GUIState s) {
         return finder.findFirst(GUIItemMatcher.loreContains("BIN Only"), s);
     }
@@ -73,27 +70,51 @@ public final class AuctionHouseGUI {
         return finder.findFirst(GUIItemMatcher.byNameContains("Sort"), s);
     }
 
-    /** Finds the "Buy Item" button in the confirmation page. */
+    /** Finds the "Buy Item" / "Buy it now" button in the confirmation page. */
     public int findBuyConfirmSlot(GUIState s) {
-        return finder.findFirst(GUIItemMatcher.nameContains("Buy"), s);
+        // Confirm screen has a "Buy Item" or "Buy it now" button; try exact first then contains.
+        int slot = finder.findFirst(GUIItemMatcher.byName("Buy Item"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("Buy"), s);
+        return slot;
     }
 
-    /** Finds the "Create Auction" confirm button. */
-    public int findCreateButton(GUIState s) {
-        return finder.findFirst(GUIItemMatcher.nameContains("Create Auction"), s);
-    }
-
-    /** Finds the gold/diamond/emerald block that switches to "Manage Auctions". */
+    /** Finds the gold/diamond head labelled exactly "Manage Auctions". */
     public int findManageButton(GUIState s) {
-        return finder.findFirst(GUIItemMatcher.nameContains("Manage"), s);
+        int slot = finder.findFirst(GUIItemMatcher.byName("Manage Auctions"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("Manage"), s);
+        return slot;
     }
 
-    /** Finds the "Go Back" arrow (name contains "Back" or is an arrow). */
+    /** Finds the "Create Auction" confirm button on the Create page. */
+    public int findCreateButton(GUIState s) {
+        int slot = finder.findFirst(GUIItemMatcher.byName("Create Auction"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("Create"), s);
+        return slot;
+    }
+
+    /** Finds the "Go Back" arrow (name contains "Back"). */
     public int findBackButton(GUIState s) {
         return finder.findFirst(GUIItemMatcher.nameContains("Back"), s);
     }
 
-    /** Returns slots that appear to be auction items (stacks with "Buy it now" in lore). */
+    /**
+     * Find a player-inventory slot that matches a skyblock id OR display-name substring.
+     * Used in CHOOSE_ITEM / CREATE to locate the item we're about to list.
+     */
+    public int findItemInInventory(GUIState s, String skyblockId, String displayNamePart) {
+        if (s == null || s.stacks == null) return -1;
+        for (int i = s.playerInventoryStart; i < s.stacks.size(); i++) {
+            GUIItemStack stack = s.stacks.get(i);
+            if (stack == null) continue;
+            if (skyblockId != null && !skyblockId.isEmpty()
+                    && skyblockId.equalsIgnoreCase(stack.skyblockId())) return i;
+            if (displayNamePart != null && !displayNamePart.isEmpty() && stack.displayName() != null
+                    && stack.displayName().toLowerCase().contains(displayNamePart.toLowerCase())) return i;
+        }
+        return -1;
+    }
+
+    /** Returns slots that appear to be auction items (stacks with "Buy it now" / "Current Bid" in lore). */
     public List<AuctionListing> findListings(GUIState s) {
         List<AuctionListing> out = new ArrayList<>();
         if (s == null || s.stacks == null) return out;
@@ -111,49 +132,21 @@ public final class AuctionHouseGUI {
         return out;
     }
 
-    /** Clicks the search button (which opens the sign). */
-    public void clickSearch(GUIState s) {
-        int slot = findSearchSlot(s);
-        if (slot >= 0) clicker.leftClick(slot);
-    }
+    // ---- Click helpers (all through GUIClickExecutor — rule §1 + humanised delays §5) ----
 
-    public void clickBinToggle(GUIState s) {
-        int slot = findBinToggle(s);
-        if (slot >= 0) clicker.leftClick(slot);
-    }
-
-    public void clickSort(GUIState s) {
-        int slot = findSortSlot(s);
-        if (slot >= 0) clicker.leftClick(slot);
-    }
-
+    public void clickSearch(GUIState s)   { int slot = findSearchSlot(s);   if (slot >= 0) clicker.leftClick(slot); }
+    public void clickBinToggle(GUIState s){ int slot = findBinToggle(s);    if (slot >= 0) clicker.leftClick(slot); }
+    public void clickSort(GUIState s)     { int slot = findSortSlot(s);     if (slot >= 0) clicker.leftClick(slot); }
     public void clickListing(GUIState s, int slot) { clicker.leftClick(slot); }
-    public void confirmBuy(GUIState s) {
-        int slot = findBuyConfirmSlot(s);
-        if (slot >= 0) clicker.leftClick(slot);
-    }
-
-    public void clickBack(GUIState s) {
-        int slot = findBackButton(s);
-        if (slot >= 0) clicker.leftClick(slot);
-    }
-
-    /** Clicks the gold "Manage Auctions" head. */
-    public void clickManage(GUIState s) {
-        int slot = findManageButton(s);
-        if (slot >= 0) clicker.leftClick(slot);
-    }
-
-    public void clickCreate(GUIState s) {
-        int slot = findCreateButton(s);
-        if (slot >= 0) clicker.leftClick(slot);
-    }
+    public void confirmBuy(GUIState s)    { int slot = findBuyConfirmSlot(s); if (slot >= 0) clicker.leftClick(slot); }
+    public void clickBack(GUIState s)     { int slot = findBackButton(s);   if (slot >= 0) clicker.leftClick(slot); }
+    public void clickManage(GUIState s)   { int slot = findManageButton(s); if (slot >= 0) clicker.leftClick(slot); }
+    public void clickCreate(GUIState s)   { int slot = findCreateButton(s); if (slot >= 0) clicker.leftClick(slot); }
+    public void clickInventorySlot(GUIState s, int slot) { clicker.leftClick(slot); }
 
     public Page lastPage() { return lastPage; }
 
-    public void update(GUIState s) {
-        lastPage = detectPage(s);
-    }
+    public void update(GUIState s) { lastPage = detectPage(s); }
 
     // ---- Internals ----
 
@@ -167,12 +160,9 @@ public final class AuctionHouseGUI {
         if (s == null || s.lore == null) return -1L;
         for (String line : s.lore) {
             String plain = line.replaceAll("§.", "").replace(",", "").trim();
-            if (plain.startsWith("Buy it now:")) {
-                return parseCoins(plain.substring("Buy it now:".length()).trim());
-            }
-            if (plain.startsWith("Price:")) {
-                return parseCoins(plain.substring("Price:".length()).trim());
-            }
+            if (plain.startsWith("Buy it now:")) return parseCoins(plain.substring("Buy it now:".length()).trim());
+            if (plain.startsWith("Price:"))      return parseCoins(plain.substring("Price:".length()).trim());
+            if (plain.startsWith("Buy it now ")) return parseCoins(plain.substring("Buy it now".length()).trim());
         }
         return -1L;
     }
@@ -181,7 +171,7 @@ public final class AuctionHouseGUI {
         if (s == null || s.lore == null) return -1L;
         for (String line : s.lore) {
             String plain = line.replaceAll("§.", "").replace(",", "").trim();
-            if (plain.startsWith("Top bid:")) return parseCoins(plain.substring("Top bid:".length()).trim());
+            if (plain.startsWith("Top bid:"))     return parseCoins(plain.substring("Top bid:".length()).trim());
             if (plain.startsWith("Current bid:")) return parseCoins(plain.substring("Current bid:".length()).trim());
         }
         return -1L;

@@ -1,7 +1,6 @@
 package com.zenith.client.flipping.ah;
 
 import com.zenith.client.ZenithClient;
-import com.zenith.client.core.chat.ZenithChat;
 import com.zenith.client.flipping.order.Order;
 import com.zenith.client.flipping.order.OrderManager;
 import com.zenith.client.flipping.order.OrderState;
@@ -31,16 +30,15 @@ public final class AuctionHouseInteractor {
         AuctionHouseExecutor.getInstance().buy(o);
     }
 
-    /** Queue an order for listing (held item). Listing flow filled in the next Phase 10 iteration. */
+    /** Queue an order for listing (item must already be in inventory / HOLDING). */
     public void beginList(Order o) {
         if (o == null) return;
         o.transition(OrderState.NAVIGATING);
-        ZenithClient.LOGGER.debug("[AH] beginList for {} (listing flow pending)", o.itemId());
-        // TODO Phase 10 iteration 2: full list flow (OPEN_MANAGE → CHOOSE_ITEM → CREATE → SET_PRICE → LISTED).
+        AuctionHouseExecutor.getInstance().list(o);
     }
 
     public void cancelBuy() {
-        // Nothing to cancel on the executor itself; it self-fails, but mark active order failed.
+        // The executor self-fails; nothing to cancel here directly.
         ZenithClient.LOGGER.debug("[AH] cancelBuy called");
     }
 
@@ -55,10 +53,16 @@ public final class AuctionHouseInteractor {
         AuctionHouseExecutor.getInstance().tick();
     }
 
-    /** Dequeue PROPOSED/NAVIGATING buy orders into the executor if it's idle. */
+    /**
+     * Dequeue PROPOSED/QUEUED_TO_BUY buy orders and HOLDING orders for listing into the
+     * executor if it's idle.
+     */
     public void pump(OrderManager mgr) {
         if (busy()) return;
-        Order next = mgr.pollToBuy();
-        if (next != null) beginBuy(next);
+        // Prefer finishing listings (already paid for) before new buys.
+        Order toList = mgr.pollToList();
+        if (toList != null) { beginList(toList); return; }
+        Order toBuy = mgr.pollToBuy();
+        if (toBuy != null) beginBuy(toBuy);
     }
 }
