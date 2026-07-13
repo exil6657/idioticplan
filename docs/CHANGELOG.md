@@ -4,7 +4,36 @@ All notable changes to the Zenith Client are tracked here. The format is
 loosely based on Keep a Changelog; phases correspond to the 20-phase master
 roadmap.
 
-## [Unreleased] — DevData developer macro (passive harvester + auto-tour)
+## [Unreleased] — Branding mega-prompt asset specification
+
+### Added
+- **`docs/ASSET_PROMPTS.md`** — single source of truth for generating every
+  visual, audio and localisation asset the mod needs. Each section includes
+  the exact file path, size, palette, style brief, negative prompt and
+  technical constraints so that an image generator, pixel artist, sound
+  designer or translator can produce consistent assets independently.
+- Defines the **Z-Palette v1** (midnight `#0B0E1D` background, signature
+  violet `#7C52FF`, secondary cyan `#22D3EE`, gold `#F5C14B` summit highlight,
+  plus success/warning/error semantic colours), icon stroke weight,
+  9-slice widget rules, typography direction, and drop-shadow conventions
+  that all UI assets must follow.
+- Covers: brand logos (full/compact/mark/mono/favicon/social/watermark),
+  24 GUI widgets (buttons, toggles, sliders, toasts, panels, etc.), hotbar
+  pill, 30 category icons, ~130 macro icons across 10 categories (farming,
+  mining, combat, fishing, foraging, hunting, dungeon, event, rift, misc),
+  sprite-sheet specs for animated spinners/ripples/alarm pulses, 4 core
+  sound effects (notification, flip-complete, failsafe-alert,
+  etherwarp-chime) with synthesis briefs and loudness targets, complete
+  key set for en_us/en_gb language files, and a list of 15 locales to ship.
+- Replaces the temporary Pillow-drawn placeholder assets — the logo
+  folder is now empty awaiting proper art from an image generator per
+  the prompts.
+
+### Design
+- User rejected the Pillow-procedural mark ("looks ugly"). Final assets
+  must come from an advanced image generator (Midjourney/SDXL/DALL·E/Flux)
+  or a human pixel/vector artist, not programmatic primitives.
+- British English defaults to en_GB but en_US is the canonical key set.
 
 ### Added
 - **`DevDataHarvester`** (`devdata/DevDataHarvester.java`) — passive in-game
