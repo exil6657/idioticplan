@@ -60,9 +60,23 @@ public final class AuctionHouseGUI {
         return finder.findFirst(GUIItemMatcher.nameContains("Search"), s);
     }
 
-    /** Finds the BIN-only toggle (lore mentions "BIN Only"). */
+    /** Finds the BIN-only toggle (gold block/dye, lore says "BIN Only") in the BROWSER screen. */
     public int findBinToggle(GUIState s) {
-        return finder.findFirst(GUIItemMatcher.loreContains("BIN Only"), s);
+        int slot = finder.findFirst(GUIItemMatcher.loreContains("BIN Only"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("BIN Only"), s);
+        return slot;
+    }
+
+    /**
+     * Finds the "Create BIN Auction" / BIN-mode toggle on the Create Auction page.
+     * Per wiki: a gold ingot next to an arrow toggles between normal auction and BIN.
+     */
+    public int findBinToggleOnCreate(GUIState s) {
+        // Gold ingot on create page named after the BIN toggle; lore typically says "Buy it now" or "Switch".
+        int slot = finder.findFirst(GUIItemMatcher.loreContains("Buy it now"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("Buy it now"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("BIN"), s);
+        return slot;
     }
 
     /** Finds the sort button. */
@@ -85,10 +99,17 @@ public final class AuctionHouseGUI {
         return slot;
     }
 
-    /** Finds the "Create Auction" confirm button on the Create page. */
+    /** Finds the "Create Auction" (regular auction) button. */
     public int findCreateButton(GUIState s) {
         int slot = finder.findFirst(GUIItemMatcher.byName("Create Auction"), s);
-        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("Create"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("Create Auction"), s);
+        return slot;
+    }
+
+    /** Finds the "Create BIN Auction" gold-ingot button. */
+    public int findCreateBinButton(GUIState s) {
+        int slot = finder.findFirst(GUIItemMatcher.byName("Create BIN Auction"), s);
+        if (slot < 0) slot = finder.findFirst(GUIItemMatcher.nameContains("Create BIN"), s);
         return slot;
     }
 
@@ -142,6 +163,8 @@ public final class AuctionHouseGUI {
     public void clickBack(GUIState s)     { int slot = findBackButton(s);   if (slot >= 0) clicker.leftClick(slot); }
     public void clickManage(GUIState s)   { int slot = findManageButton(s); if (slot >= 0) clicker.leftClick(slot); }
     public void clickCreate(GUIState s)   { int slot = findCreateButton(s); if (slot >= 0) clicker.leftClick(slot); }
+    public void clickCreateBin(GUIState s){ int slot = findCreateBinButton(s); if (slot >= 0) clicker.leftClick(slot); }
+    public void clickBinToggleOnCreate(GUIState s) { int slot = findBinToggleOnCreate(s); if (slot >= 0) clicker.leftClick(slot); }
     public void clickInventorySlot(GUIState s, int slot) { clicker.leftClick(slot); }
 
     public Page lastPage() { return lastPage; }

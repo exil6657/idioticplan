@@ -8,8 +8,11 @@ import com.zenith.client.flipping.FlipEngine;
 import com.zenith.client.gui.ZenithScreen;
 import com.zenith.client.gui.ZenithScreenWrapper;
 import com.zenith.client.gui.component.*;
+import com.zenith.client.gui.hud.panels.FarmingStatsPanel;
 import com.zenith.client.gui.theme.Theme;
 import com.zenith.client.gui.theme.ThemeManager;
+import com.zenith.client.macro.MacroManager;
+import com.zenith.client.macro.MacroModule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +51,8 @@ public class DashboardScreen extends ZenithScreen {
     private void buildPanels() {
         // --- HOME panel ---
         homePanel.add(new Label("Zenith Client v" + ZenithClientInfo.VERSION, accent()));
-        homePanel.add(new Label("Phase 9 of 20", secondary()));
+        homePanel.add(new Label("Phase 10 of 20 — GUI dashboard + AH/Bazaar + macro framework", secondary()));
+        homePanel.add(new Label(" ", secondary()));
 
         Button btnFailsafeResume = new Button("Resume Failsafe", b -> {
             FailsafeManager.getInstance().resumeFromUser();
@@ -88,9 +92,17 @@ public class DashboardScreen extends ZenithScreen {
         failPanel.add(new ZenithToggle("Toast alert", FailsafeManager.getInstance().config().toastAlert)
                 .onToggle(v -> FailsafeManager.getInstance().config().toastAlert = v));
 
-        // --- MACROS panel (placeholders until farming/combat/mining phases). ---
-        macroPanel.add(new Label("Macros — coming in later phases", secondary()));
-        macroPanel.add(new Label("(farming / mining / combat / fishing / foraging)", secondary()));
+        // --- MACROS panel (live start/stop buttons for every registered macro). ---
+        macroPanel.add(new Label("Macros", accent()));
+        macroPanel.add(new Button("Stop All", b -> MacroManager.getInstance().stopAll("dashboard")));
+        macroPanel.add(new Label(" ", secondary()));
+        // Macro rows are rebuilt dynamically at render time (see render()) but
+        // static labels give panel a sensible default height.
+        for (MacroModule m : MacroManager.getInstance().all()) {
+            final String id = m.id();
+            macroPanel.add(new Label(m.icon() + " " + m.displayName(), secondary()));
+            macroPanel.add(new Button("Start", b -> MacroManager.getInstance().start(id)));
+        }
 
         // --- SETTINGS panel ---
         settingsPanel.add(new Label("Settings", accent()));
@@ -148,6 +160,10 @@ public class DashboardScreen extends ZenithScreen {
         tabs.hovered = tabs.isMouseOver(mx, my);
         tabs.render(ctx, mx, my, td);
 
+        // Re-build macros panel dynamically so it reflects live registered modules
+        // and current running state (dashboard is the primary control surface).
+        rebuildMacroPanel();
+
         // Render active panel with an offset clip.
         List<Component> active = activePanel();
         float startX = px + 10;
@@ -190,4 +206,37 @@ public class DashboardScreen extends ZenithScreen {
 
     private static Color4f accent()   { return ThemeManager.getInstance().current().accent; }
     private static Color4f secondary(){ return ThemeManager.getInstance().current().textSecondary; }
+
+    /**
+     * Rebuild macro rows on each frame so the list of macros and their running
+     * state always reflects the MacroManager. This keeps the dashboard as the
+     * primary control surface — no command required to start/stop.
+     */
+    private void rebuildMacroPanel() {
+        // Preserve the header + "Stop All" + spacer (first 3 components).
+        List<Component> preserved = new ArrayList<>();
+        for (int i = 0; i < Math.min(3, macroPanel.size()); i++) preserved.add(macroPanel.get(i));
+        macroPanel.clear();
+        macroPanel.addAll(preserved);
+        for (MacroModule m : MacroManager.getInstance().all()) {
+            final String id = m.id();
+            boolean running = m.isRunning();
+            Color4f state = running ? new Color4f(0.3f, 0.85f, 0.4f, 1f) : secondary();
+            macroPanel.add(new Label(m.icon() + " " + m.displayName() + "  " + (running ? "● RUNNING" : "○ idle"), state));
+            macroPanel.add(new Button(running ? "Stop" : "Start", b -> {
+                if (MacroManager.getInstance().active() == m && running) MacroManager.getInstance().stopAll("dashboard");
+                else MacroManager.getInstance().start(id);
+            }));
+        }
+        // Re-layout so new components get positions (simplified: re-run layoutPanel).
+        // init() already lays out; re-run for macros only:
+        float y = 0;
+        for (Component c : macroPanel) {
+            if (c instanceof Label) { c.width = 400; c.height = 11; }
+            else if (c instanceof Button) { c.width = 180; c.height = 18; }
+            else if (c instanceof ZenithToggle) { c.width = 380; c.height = 16; }
+            c.x = 30; c.y = 64 + y;
+            y += c.height + 4;
+        }
+    }
 }

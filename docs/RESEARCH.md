@@ -182,3 +182,84 @@ Research items from the master document (Part 3 §1). Status is updated as each 
 ## R040 — Drop Rates Database [HIGH]
 - **Status:** PENDING
 - **Blocks:** DropRateDatabase.java, GrindVsBuyAnalyzer.java.
+
+## R041 — Auction House GUI layout [COMPLETE]
+- **Status:** VERIFIED (wiki.hypixel.net 2026-07)
+- **Findings:**
+  - `/ah` opens the Auction Browser (Booster Cookie required for remote access).
+  - Browser page top bar: Gold Block (Refresh BINs), Golden Carrot (Auction Stats),
+    Golden Horse Armor ("Manage Auctions"), Barrier (Close), ↻ Refresh, Empty Map (Auction Stats),
+    Arrow (Back).
+  - "Manage Auctions" page contains a "Create Auction" golden horse armor AND a "Create BIN Auction"
+    gold ingot next to an arrow; BIN mode is a separate toggle item.
+  - Clicking Create BIN → Choose Item (inventory screen title "Choose Item") → click item →
+    Create BIN screen with gold bar (price sign), clock (duration), etc.
+  - After typing price into the sign and clicking Done, the gold "Create" button lists the BIN.
+  - Confirmation screen title is "Confirm" with a "Buy Item" stained-glass button.
+  - Search opens an oak sign; lore for BIN auction items contains "Buy it now: <price> coins".
+- **Corrections applied:** Added findCreateBinButton / findBinToggleOnCreate / clickCreateBin;
+  executor clicks Create BIN Auction gold ingot not the regular Create Auction horse armor.
+- **[RESEARCH NEEDED]** Exact display name and lore text for the BIN price gold bar on the
+  "Create BIN Auction" screen (currently matching lore "Buy it now"/"Price" — verify in-game).
+- **Sources:** https://hypixelskyblock.minecraft.wiki/w/Auction_House
+
+## R042 — Bazaar GUI layout [PARTIAL]
+- **Status:** PARTIAL
+- **Findings:**
+  - `/bz` opens Bazaar main menu (categories Farming/Mining/Combat/Woods&Fishes/Oddities).
+  - Product page: "Buy Instantly", "Sell Instantly", "Create Buy Order", "Create Sell Order" buttons.
+  - Instant Buy: sign prompt "How many do you want?" (quantity) → confirm screen "Buy X for Y coins".
+  - Instant Sell left-click sells ALL matching items in inventory; right-click selects quantity.
+  - Custom price sign prompt: "At what price per unit?" with presets (match top offer, +0.1, 5% spread, custom).
+- **[RESEARCH NEEDED]** Exact item display names/lore for Buy Instantly / Sell Instantly /
+  Buy Order / Sell Order buttons; sign-screen titles; confirmation-screen titles (we guess
+  "Buy X instantly?" / "Sell X instantly?" and "How much do you want" / "At what price").
+  See `BazaarGUI` findBuyInstantly / findSellInstantly which currently use nameContains.
+- **Sources:** https://hypixel-skyblock.fandom.com/wiki/Bazaar
+
+## R043 — Warp commands [COMPLETE]
+- **Status:** VERIFIED
+- **Findings (wiki.hypixel.net Travel Scrolls):**
+  - /warp barn (The Barn — farming), /warp park (Birch Park — foraging),
+    /warp deep (Deep Caverns — NOT deepcaverns), /warp gold (Gold Mine),
+    /warp spider (Spider's Den), /warp end (The End), /warp isle (Crimson Isle — NOT nether),
+    /warp mines (Dwarven Mines), /warp da (Dark Auction), /warp crypt/museum/wizard etc.
+- **Corrections applied:** SkyblockNavigator uses /warp deep, /warp isle, /warp mines.
+- **Sources:** https://hypixelskyblock.minecraft.wiki/w/Travel_Scrolls
+
+## R044 — Limbo [PARTIAL]
+- **Status:** PARTIAL
+- **Findings:** Limbo is entered on AFK kick, build 0 server, or lobby crash. Title bar says
+  "You are in Limbo!" in red bold. No blocks render. Use `/lobby` to return to main lobby,
+  then `/play skyblock` to rejoin SkyBlock. `/is` does NOT work from Limbo.
+- **Corrections applied:** SkyblockNavigator.escapeLimbo() sends /lobby; caller must follow
+  up with toSkyblock() after delay (Phase 13+ travel engine).
+- **Sources:** Reddit/hypixel.net threads; confirm exact title text in-game.
+
+## R045 — Death/respawn in SkyBlock [PARTIAL]
+- **Status:** PARTIAL
+- **Findings:** In most SkyBlock areas death respawns you at the area spawn or your island
+  with a coins penalty and no vanilla DeathScreen; the "You died!" title appears with a
+  "Respawning..." countdown in chat. Auto-respawn (clicking immediately) is not a ban risk.
+- **[RESEARCH NEEDED]** Whether DeathScreen actually appears in SkyBlock (likely no; need to
+  verify so RespawnAction doesn't click a non-existent button).
+- **Sources:** Hypixel SkyBlock death mechanics wiki.
+
+## R046 — Hypixel custom health system [PARTIAL]
+- **Status:** PARTIAL
+- **Findings:** HP shown on scoreboard/action bar is effective HP (base HP + defense +
+  absorption + fairy souls). Vanilla `player.getHealth()` returns 0–20 and is mostly misleading;
+  PlayerHealthMonitor should read from scoreboard/action bar for real HP.
+- **[RESEARCH NEEDED]** Exact action-bar regex for HP/Defense/Mana.
+- **Sources:** NEU / SkyHanni source.
+
+## R047 — SignEditScreen field layout [PARTIAL]
+- **Status:** PARTIAL
+- **Findings:** In 1.20+ SignEditScreen holds two SignText objects (`frontText`/`backText` in Yarn;
+  Mojang names unknown for 26.1 — possibly `signText` + `front`/`back`). Each SignText has
+  `Text[] messages` and `Text[] filteredMessages`. Older MC used a `List<Component> signText`
+  or `String[]`. SignInputHandler now reflectively walks signText/frontText/backText/message
+  fields and sets line 0 via either List.set, array assignment, or SignText.messages[].
+- **[RESEARCH NEEDED]** Exact Mojang field names for 26.1 SignEditScreen.
+- SignInputHandler.findField/superclass walk should be robust enough to find the field
+  regardless of naming, but onDone() invocation should be verified in-game.

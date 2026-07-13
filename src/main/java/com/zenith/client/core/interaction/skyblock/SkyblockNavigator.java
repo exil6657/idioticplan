@@ -33,15 +33,21 @@ public final class SkyblockNavigator {
     /** Travel to the Park / forest. */
     public void toPark()    { CommandSender.send("/warp park"); }
     /** Travel to the Deep Caverns (mining). */
-    public void toDeepCaverns() { CommandSender.send("/warp deepcaverns"); }
+    public void toDeepCaverns() { CommandSender.send("/warp deep"); }
     /** Travel to the Gold Mine. */
     public void toGoldMine(){ CommandSender.send("/warp gold"); }
-    /** Travel to the Blazing Fortress. */
-    public void toBlazing() { CommandSender.send("/warp nether"); }
+    /** Travel to the Crimson Isle (Blazing Fortress replacement). */
+    public void toCrimson() { CommandSender.send("/warp isle"); }
     /** Travel to the Spider's Den. */
     public void toSpider()  { CommandSender.send("/warp spider"); }
-    /** Travel to the End. */
+    /** Travel to The End. */
     public void toEnd()     { CommandSender.send("/warp end"); }
+    /** Travel to Dwarven Mines. */
+    public void toDwarven() { CommandSender.send("/warp mines"); }
+    /** Travel to the Park (foraging). */
+    public void toPark()    { CommandSender.send("/warp park"); }
+    /** Travel to the Barn (farming). */
+    public void toBarn()    { CommandSender.send("/warp barn"); }
 
     /** @return true if the player appears to be in SkyBlock (scoreboard title heuristic). */
     public boolean isInSkyblock() {

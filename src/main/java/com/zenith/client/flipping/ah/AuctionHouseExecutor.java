@@ -219,16 +219,16 @@ public final class AuctionHouseExecutor {
             }
             case "CLICK_CREATE_HEAD" -> {
                 if (s == null) break;
-                int cb = ah.findCreateButton(s);
+                // Per wiki: from the Manage Auctions page, click the "Create BIN Auction"
+                // gold ingot (not the regular "Create Auction" horse armor which starts a
+                // normal auction). Fall back to the generic create button if BIN isn't found.
+                int cb = ah.findCreateBinButton(s);
+                if (cb < 0) cb = ah.findCreateButton(s);
                 if (cb >= 0) {
-                    ah.clickCreate(s);
+                    ah.clickCreateBin(s);
                     transition("WAIT_CHOOSE_ITEM");
                 } else if (now - stateEnteredMs > 3000) {
-                    // On some pages the Create Auction item shows as "Create Auction" but
-                    // we might be on the MANAGE page with it renamed; try a nameContains fallback.
-                    int fb = ah.findCreateButton(s);
-                    if (fb >= 0) ah.clickCreate(s);
-                    else fail("create-auction button missing on manage page");
+                    fail("create-auction button missing on manage page");
                 }
             }
             case "WAIT_CHOOSE_ITEM" -> {
@@ -255,29 +255,36 @@ public final class AuctionHouseExecutor {
             case "WAIT_CREATE" -> {
                 if (s == null) break;
                 if (ah.detectPage(s) == AuctionHouseGUI.Page.CREATE) {
+                    // Ensure BIN mode is selected (gold ingot toggle).
+                    // Note: the "Create BIN Auction" button leads directly to the
+                    // "Choose Item" screen; the price sign appears after choosing an item.
                     transition("SET_PRICE");
                 } else if (now - stateEnteredMs > 3000) fail("create page didn't open after choosing item");
             }
             case "SET_PRICE" -> {
                 if (s == null) break;
-                // On Create Auction screen there are typically two signs: one for quantity
-                // (for stackable items) and one for price. The price sign has "Buy it now"
-                // or "Price:" in lore/name. Rather than hard-coding sign slot indices (rule §1),
-                // we look for a sign/lore that mentions "Buy it now" or "Price" — but simpler:
-                // Hypixel shows the price sign as the right-hand sign (lore contains "Buy it now").
-                // Use SignInputHandler.isInSignScreen() to detect when the player has the sign
-                // open, and request our formatted price.
+                // On the Create BIN Auction page (after selecting an item), Hypixel shows a
+                // Gold Ingot (sign) for setting the BIN price. Lore contains "Buy it now"
+                // or "Price per unit". Click it; SignInputHandler types the price.
+                // RESEARCH: exact BIN page item labels are approximate; match by lore/name
+                // containing "Buy it now", "Price", or per the wiki the gold bar sets the
+                // minimum (bid) price; for BIN auctions the gold block next to the arrow
+                // sets the BIN price.
                 int priceSign = findPriceSign(s);
                 if (priceSign >= 0) {
                     pendingPrice = formatPrice(current.listPrice > 0 ? current.listPrice : current.candidate.sellPrice);
                     ah.clickInventorySlot(s, priceSign);
                     transition("WAIT_PRICE_SIGN");
                 } else if (SignInputHandler.getInstance().isInSignScreen()) {
-                    // Sign is already open from a previous click we missed.
                     pendingPrice = formatPrice(current.listPrice > 0 ? current.listPrice : current.candidate.sellPrice);
                     SignInputHandler.getInstance().requestType(pendingPrice);
                     transition("WAIT_PRICE_SUBMIT");
-                } else if (now - stateEnteredMs > 4000) fail("price sign not found on create page");
+                } else if (now - stateEnteredMs > 4000) {
+                    // [RESEARCH NEEDED] exact price sign slot/name for BIN creation.
+                    // The button names/lore on the Create BIN Auction page need verification
+                    // in a dev environment. For now fail and log.
+                    fail("price sign not found on BIN create page [RESEARCH]");
+                }
             }
             case "WAIT_PRICE_SIGN" -> {
                 if (SignInputHandler.getInstance().isInSignScreen()) {
