@@ -605,3 +605,51 @@ roadmap.
 - Dot commands never reach the server; completion is entirely client-side via mixin on CommandSuggestions.
 - No custom Fabric channels; brigadier is not extended (would send brand packets / register server-side commands).
 - All toggles in the dashboard mutate live config fields (persistence wiring for those specific settings lands when settings panels are expanded in Phase 13).
+
+## Unreleased — Systems audit & Bazaar limit-order flow
+
+### Added
+- **docs/SYSTEMS.md** — exhaustive 52-system breakdown covering every subsystem:
+  current status (✅/🟡/❌/🔬), how it works, known bugs, per-system acceptance
+  criteria, a prioritised 16-step backlog, and the open-research list.
+- **Bazaar Create Buy/Sell Order (limit order) flow** in `BazaarExecutor`:
+  state machine now supports `instantBuy`, `instantSell`, `createBuyOrder`,
+  and `createSellOrder` entry points; walks Catalog → Category → Product →
+  qty sign → price sign (limit) → confirm → done.
+- **BazaarCategory** mapping table (product id → Farming/Mining/Combat/
+  "Woods & Fishes"/Oddities) seeded with hot products from BazaarFlipEngine.
+- **Missing cache classes** (imports existed but files were missing):
+  - `api/cache/BazaarCache` with `BazaarEntry(buyPrice, sellPrice, volumes, ageMs)`
+    and `instantBuyPrice / instantSellPrice` aliases matching Hypixel
+    semantics.
+  - `api/cache/BINCache` lowest-BIN price cache.
+  - `api/cache/ItemDatabaseCache` NEU items.json view.
+  - `api/cache/RecipeCache` recipes keyed by output id.
+- **ConfigManager** — Gson-backed config system with register API, debounced
+  save on tick, and MainConfig (commandPrefix/language/theme/customThemeHue/
+  openDashboardOnStart/devDataAuto/keybinds). Ticked from ClientTickDispatcher.
+
+### Changed
+- **OrderManager queues split**: `listQueue` was shared between AH listing and
+  Bazaar sell (race); now split into `ahListQueue` and `bazaarSellQueue`.
+  Added `markBoughtBazaar()` and `pollToBazaarSell()` helpers.
+- **BazaarGUI** extended with `findCategory`, `findCustomButton`, `readPricePerUnit`,
+  `clickCategory`, `clickCustom` helpers; broadened sign detection to cover
+  "How much do you want…" / "How many do you want…" quantity titles plus
+  Buy Order/Sell Order confirm panes.
+- `ClientTickDispatcher` now calls `ConfigManager.getInstance().tick()` for
+  debounced config saves.
+
+### Known correctness issues (see docs/SYSTEMS.md for full list)
+- PlayerHealthMonitor reads vanilla HP (always 20/20 in SkyBlock) — LOW_HEALTH
+  failsafe will not fire until action-bar HP regex is added.
+- SignInputHandler needs updating to 1.21+ SignText record API.
+- ZenithEyes uses linear (not ease-in-out) interpolation; missing tracking=true
+  and micro-jitter — stealth risk.
+- ZenithPath A* walk execution not yet implemented; RepathReactionAction sets
+  up state but does not yet move the player.
+- AuctionHouseExecutor BUY does not click Sort → Price:Low → High before
+  purchasing — may overpay.
+- BazaarCategory is hard-coded; DevData tour will replace with real data.
+- Tax Calculator numbers (AH 1/2/8%, Bazaar 5%/1.25%) need verifying against
+  live Hypixel — suspected wrong (real Bazaar rate is 1.25% each side).

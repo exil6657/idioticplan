@@ -55,8 +55,10 @@ public final class BazaarGUI {
         if (t.startsWith("Buy ") && t.contains("instantly")) return Page.CONFIRM_BUY;
         if (t.startsWith("Sell ") && t.contains("instantly")) return Page.CONFIRM_SELL;
         if (t.contains("Manage Orders")) return Page.MANAGE_ORDERS;
-        if (t.startsWith("How much do you want")) return Page.QUANTITY_SIGN;
+        if (t.startsWith("How much do you want") || t.startsWith("How many do you want")) return Page.QUANTITY_SIGN;
         if (t.startsWith("At what price")) return Page.PRICE_SIGN;
+        if (t.contains("Buy Order") && t.contains("Confirm")) return Page.CONFIRM_BUY;
+        if (t.contains("Sell Order") && t.contains("Confirm")) return Page.CONFIRM_SELL;
         return Page.UNKNOWN;
     }
 
@@ -114,6 +116,55 @@ public final class BazaarGUI {
         return -1;
     }
 
+    /**
+     * Finds a category icon on the Bazaar CATALOG page. Skips top-bar utility
+     * items (Go Back / Manage Orders / Sell Inventory Now / arrows).
+     */
+    public int findCategory(GUIState s, String categoryName) {
+        if (s == null || s.stacks == null || categoryName == null) return -1;
+        String target = BazaarCategory.fuzzyName(categoryName);
+        for (int i = 0; i < Math.min(s.playerInventoryStart, s.stacks.size()); i++) {
+            GUIItemStack stack = s.stacks.get(i);
+            if (stack == null || stack.displayName() == null) continue;
+            String plain = stack.displayName().replaceAll("§.", "").trim();
+            if (isTopBarItem(plain)) continue;
+            if (plain.equalsIgnoreCase(target)
+                    || plain.toLowerCase().startsWith(target.toLowerCase())) return i;
+        }
+        return -1;
+    }
+
+    /** Finds the "Custom Amount" / "Custom Price" button on quantity/price panes. */
+    public int findCustomButton(GUIState s) {
+        if (s == null || s.stacks == null) return -1;
+        for (int i = 0; i < Math.min(s.playerInventoryStart, s.stacks.size()); i++) {
+            GUIItemStack stack = s.stacks.get(i);
+            if (stack == null) continue;
+            String n = stack.displayName() == null ? "" : stack.displayName().replaceAll("§.", "").trim();
+            if (n.startsWith("Custom") || n.contains("Custom Amount") || n.contains("Custom Price")) return i;
+        }
+        return -1;
+    }
+
+    /** Reads "Price per unit: <n> coins" off a stack's lore. */
+    public long readPricePerUnit(GUIItemStack stack) {
+        if (stack == null || stack.lore() == null) return -1L;
+        for (String line : stack.lore()) {
+            long v = parsePriceLine(line);
+            if (v > 0) return v;
+        }
+        return -1L;
+    }
+
+    private static boolean isTopBarItem(String plain) {
+        if (plain == null) return false;
+        String p = plain.toLowerCase();
+        return p.startsWith("go back") || p.contains("manage orders")
+                || p.contains("sell inventory now") || p.contains("buy instantly")
+                || p.contains("sell instantly") || p.startsWith("buy order")
+                || p.startsWith("sell order") || p.contains("➜");
+    }
+
     /** Parse a lore line like "Price per unit: 12.5k coins" → 12_500. */
     public static long parsePriceLine(String line) {
         if (line == null) return -1L;
@@ -134,6 +185,14 @@ public final class BazaarGUI {
     public void clickBack(GUIState s)          { int sl = findBackButton(s);   if (sl >= 0) clicker.leftClick(sl); }
     public void clickConfirm(GUIState s)       { int sl = findConfirmButton(s);if (sl >= 0) clicker.leftClick(sl); }
     public void clickProduct(GUIState s, int slot) { clicker.leftClick(slot); }
+    public void clickCategory(GUIState s, String categoryName) {
+        int slot = findCategory(s, categoryName);
+        if (slot >= 0) clicker.leftClick(slot);
+    }
+    public void clickCustom(GUIState s) {
+        int slot = findCustomButton(s);
+        if (slot >= 0) clicker.leftClick(slot);
+    }
 
     public Page lastPage() { return lastPage; }
     public void update(GUIState s) { lastPage = detectPage(s); }

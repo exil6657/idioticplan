@@ -4,6 +4,7 @@ import com.zenith.client.core.event.annotation.SubscribeEvent;
 import com.zenith.client.core.event.events.ClientTickEvent;
 import com.zenith.client.core.module.ModuleManager;
 import com.zenith.client.core.player.PlayerHealthMonitor;
+import com.zenith.client.config.ConfigManager;
 import com.zenith.client.core.player.PlayerPositionTracker;
 import com.zenith.client.engine.input.InputEngine;
 import com.zenith.client.engine.path.learning.MovementLearner;
@@ -42,5 +43,6 @@ public final class ClientTickDispatcher {
         MacroManager.getInstance().tick();
         com.zenith.client.core.interaction.skyblock.TravelEngine.getInstance().tick();
         FlipEngine.getInstance().tick();
+        ConfigManager.getInstance().tick();
     }
 }
