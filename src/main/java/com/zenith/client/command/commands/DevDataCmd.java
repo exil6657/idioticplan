@@ -76,10 +76,16 @@ public class DevDataCmd implements Command {
                 return CommandResult.ok(h.getOutputPath().toString());
             }
             case "tour", "run", "start-tour" -> {
+                boolean full = args.length > 1 && (args[1].equalsIgnoreCase("full") || args[1].equalsIgnoreCase("exhaustive") || args[1].equalsIgnoreCase("all"));
                 // Stop any running macro first, then launch the dev data tour macro.
                 com.zenith.client.macro.MacroManager.getInstance().stopAll("devdata tour");
-                com.zenith.client.macro.MacroManager.getInstance().start("dev:devdata");
-                return CommandResult.ok("DevData tour started — stopping at /is. Do not touch inputs.");
+                if (full) {
+                    com.zenith.client.macro.MacroManager.getInstance().start("dev:devdata-full");
+                    return CommandResult.ok("FULL DevData tour started (25-40 min, ALL Bazaar products + AH sort cycle + extra GUIs) — do not touch inputs. .z devdata stop-tour to abort. File → <gameDir>/zenith/devdata/OBSERVATIONS.md");
+                } else {
+                    com.zenith.client.macro.MacroManager.getInstance().start("dev:devdata");
+                    return CommandResult.ok("Quick DevData tour started (3 min, first category/product only). For FULL run: .z devdata tour full");
+                }
             }
             case "stop-tour" -> {
                 com.zenith.client.macro.MacroManager.getInstance().stopAll("devdata tour stop");
@@ -93,8 +99,10 @@ public class DevDataCmd implements Command {
 
     @Override
     public List<String> suggest(String[] argv) {
-        if (argv.length <= 2) {
+        if (argv.length == 1) {
             return List.of("on", "off", "status", "flush", "snapshot", "note", "tour", "stop-tour", "path");
+        } else if (argv.length == 2 && argv[0].equalsIgnoreCase("tour")) {
+            return List.of("full", "quick");
         }
         return new ArrayList<>();
     }

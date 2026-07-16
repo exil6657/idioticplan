@@ -19,6 +19,7 @@ import com.zenith.client.gui.GuiEngine;
 import com.zenith.client.gui.hud.HudManager;
 import com.zenith.client.keybind.KeybindManager;
 import com.zenith.client.macro.MacroManager;
+import com.zenith.client.macro.dev.DevDataFullTourMacro;
 import com.zenith.client.macro.dev.DevDataMacro;
 import com.zenith.client.macro.farming.MelonMacro;
 import com.zenith.client.macro.farming.PumpkinMacro;
@@ -100,6 +101,7 @@ public class ZenithClient implements ClientModInitializer {
         MacroManager.getInstance().register(MelonMacro.INSTANCE);
         MacroManager.getInstance().register(PumpkinMacro.INSTANCE);
         MacroManager.getInstance().register(DevDataMacro.INSTANCE);
+        MacroManager.getInstance().register(DevDataFullTourMacro.INSTANCE);
 
         // Phase 8: API/data layer — NEU items/recipes/constants, Moulberry lowestbin,
         // Coflnet bazaar/mayor/flips, rate limits, scrapers, wiki, update checker.
