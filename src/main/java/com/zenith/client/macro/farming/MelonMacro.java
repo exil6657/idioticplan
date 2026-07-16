@@ -4,9 +4,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Melon farming macro — walks a straight row breaking melon blocks. The user
- * should start facing the row; targetYaw() uses the player's current yaw on
- * start. Real row-reversal / turn logic comes in Phase 13.
+ * Melon farming macro — walks a straight row breaking melon blocks.
+ * Now has proper U-turn (AbstractFarmingMacro state machine), anchor capture
+ * for REPATH, and correct yaw math.
  */
 public final class MelonMacro extends AbstractFarmingMacro {
 
@@ -26,22 +26,23 @@ public final class MelonMacro extends AbstractFarmingMacro {
         super.onStart();
     }
 
-    @Override protected float targetYaw() { return startYaw; }
+    @Override protected float targetYaw() {
+        // When returning, inherited logic already flips, but we can also add manual.
+        // AbstractFarmingMacro handles flip via 'returning' flag in RESYNC/FORWARD.
+        if (returning) {
+            float yaw = startYaw + 180f;
+            if (yaw > 180f) yaw -= 360f;
+            if (yaw < -180f) yaw += 360f;
+            return yaw;
+        }
+        return startYaw;
+    }
 
     @Override protected boolean cropMatcher(BlockState state) {
         return state.is(Blocks.MELON);
     }
 
-    @Override public double destX() {
-        var p = net.minecraft.client.Minecraft.getInstance().player;
-        return p == null ? 0 : p.getX();
-    }
-    @Override public double destY() {
-        var p = net.minecraft.client.Minecraft.getInstance().player;
-        return p == null ? 0 : p.getY();
-    }
-    @Override public double destZ() {
-        var p = net.minecraft.client.Minecraft.getInstance().player;
-        return p == null ? 0 : p.getZ();
-    }
+    @Override protected float rowLength() { return 120f; } // user-configurable later
+    @Override protected float rowSpacing() { return 2.5f; }
+    @Override protected String expectedToolId() { return "MELON_DICER"; }
 }

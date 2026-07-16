@@ -63,20 +63,23 @@ public final class CombatReactionAction {
         }
 
         if (target != null) {
-            // Aim at the target (smooth rotation via ZenithEyes).
+            // Aim at the target — correct MC yaw formula: yaw = atan2(-dx, dz) in degrees
             double dx = target.getX() - mc.player.getX();
-            double dy = target.getEyeY() - mc.player.getEyeY();
+            double dy = (target.getY() + target.getEyeHeight()/2.0) - mc.player.getEyeY();
             double dz = target.getZ() - mc.player.getZ();
             double distXZ = Math.sqrt(dx*dx + dz*dz);
-            float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-            float pitch = (float) -Math.toDegrees(Math.atan2(dy, distXZ));
+            float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+            float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.max(0.1, distXZ)));
+            // Clamp pitch
+            pitch = Math.max(-90f, Math.min(90f, pitch));
             ZenithEyes.getInstance().requestRotation(
                     com.zenith.client.engine.eyes.RotationRequest.builder()
                             .yaw(yaw).pitch(pitch)
                             .priority(com.zenith.client.engine.eyes.RotationRequest.Priority.COMBAT)
-                            .durationMs(120L)
+                            .durationMs(180L) // slightly longer for human-like
                             .profile("failsafe-combat")
                             .tag("failsafe:combat")
+                            .tracking(true) // track moving target if engine supports it
                             .build());
         }
 

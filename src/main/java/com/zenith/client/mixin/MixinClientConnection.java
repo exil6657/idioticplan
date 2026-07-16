@@ -64,6 +64,7 @@ public abstract class MixinClientConnection {
 
         String text = null;
         int type = 0;
+        String packetClass = packet.getClass().getSimpleName();
         if (packet instanceof ClientboundSystemChatPacket sys) {
             Component c = sys.content();
             if (c != null) text = c.getString();
@@ -71,12 +72,47 @@ public abstract class MixinClientConnection {
             Component c = p.body().content();
             if (c != null) text = c.getString();
             type = 0;
+        } else if (packetClass.equals("ClientboundSetActionBarTextPacket") || packetClass.contains("ActionBar")) {
+            // MC 26.1 moj: ClientboundSetActionBarTextPacket contains Component text
+            try {
+                var m = packet.getClass().getMethod("text");
+                Object comp = m.invoke(packet);
+                if (comp instanceof Component c) text = c.getString();
+                else if (comp != null) text = comp.toString();
+                type = 2; // action bar
+            } catch (Throwable t) {
+                // reflective fallback for field named 'text' or 'content'
+                try {
+                    var f = packet.getClass().getDeclaredField("text");
+                    f.setAccessible(true);
+                    Object comp = f.get(packet);
+                    if (comp instanceof Component c) text = c.getString();
+                } catch (Throwable ignored) {}
+            }
+        }
+        // Also handle ClientboundSetActionBarTextPacket via instanceof if class exists
+        if (text == null) {
+            try {
+                Class<?> abClz = Class.forName("net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket");
+                if (abClz.isInstance(packet)) {
+                    var m = abClz.getMethod("text");
+                    Object comp = m.invoke(packet);
+                    if (comp instanceof Component c) text = c.getString();
+                    type = 2;
+                }
+            } catch (Throwable ignored) {}
         }
         if (text != null) {
             String raw = text;
             String plain = raw.replaceAll("§.", "");
             ChatReceivedEvent chatEvt = new ChatReceivedEvent(plain, raw, type);
             ZenithEventBus.getInstance().post(chatEvt);
+            // Also feed directly into PlayerHealthMonitor if contains ❤
+            if (plain.contains("❤")) {
+                try {
+                    com.zenith.client.core.player.PlayerHealthMonitor.getInstance().parseActionBar(plain);
+                } catch (Throwable ignored) {}
+            }
             if (chatEvt.isCancelled()) ci.cancel();
         }
     }

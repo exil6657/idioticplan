@@ -34,19 +34,41 @@ public final class TaxCalculator {
     }
 
     /**
-     * Net coins spent when instant-buying a bazaar offer (you pay a ~5% premium over sell price).
+     * Net coins spent when instant-buying a bazaar offer.
+     * Real Bazaar: you pay exactly the sell offer price (no premium); 1.25% is charged
+     * on the seller's side, not buyer. For profit calc we include the fee on sell side only,
+     * but we keep this method returning gross cost (historical code added 5% which killed profit).
      */
     public static long bazaarInstantBuyCost(long unitPrice, int count) {
-        double rate = TaxTier.BAZAAR_INSTANT_BUY.rate;
-        return (long) Math.ceil(unitPrice * (1d + rate)) * (long) count;
+        // Corrected: no extra fee on buy side for instant buy; seller pays tax.
+        // If you want to model the 1.25% as buyer cost, use rate, but wiki says sell-side only.
+        // We return gross cost so SpreadCalculator comparisons are accurate.
+        return unitPrice * (long) count;
     }
 
     /**
-     * Net coins received when instant-selling to a buy order.
+     * Net coins received when instant-selling to a buy order (seller pays 1.25%).
      */
     public static long bazaarInstantSellReceived(long unitPrice, int count) {
         double rate = TaxTier.BAZAAR_INSTANT_SELL.rate;
         return (long) Math.floor(unitPrice * (1d - rate)) * (long) count;
+    }
+
+    /**
+     * Net coins received after a limit sell order fills (seller pays 1% create + 1.25% sell = ~1.25% net).
+     * For simplicity use SELL rate.
+     */
+    public static long bazaarLimitSellReceived(long unitPrice, int count) {
+        double rate = TaxTier.BAZAAR_INSTANT_SELL.rate;
+        return (long) Math.floor(unitPrice * (1d - rate)) * (long) count;
+    }
+
+    /**
+     * Coins escrowed when creating a buy order (buy price + 1% tax held).
+     */
+    public static long bazaarCreateBuyCost(long unitPrice, int count) {
+        double rate = TaxTier.BAZAAR_CREATE.rate;
+        return (long) Math.ceil(unitPrice * (1d + rate)) * (long) count;
     }
 
     /**

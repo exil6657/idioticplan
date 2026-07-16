@@ -21,13 +21,21 @@ public final class PumpkinMacro extends AbstractFarmingMacro {
         super.onStart();
     }
 
-    @Override protected float targetYaw() { return startYaw; }
+    @Override protected float targetYaw() {
+        if (returning) {
+            float yaw = startYaw + 180f;
+            if (yaw > 180f) yaw -= 360f;
+            if (yaw < -180f) yaw += 360f;
+            return yaw;
+        }
+        return startYaw;
+    }
 
     @Override protected boolean cropMatcher(BlockState state) {
         return state.is(Blocks.PUMPKIN);
     }
 
-    @Override public double destX() { var p = net.minecraft.client.Minecraft.getInstance().player; return p == null ? 0 : p.getX(); }
-    @Override public double destY() { var p = net.minecraft.client.Minecraft.getInstance().player; return p == null ? 0 : p.getY(); }
-    @Override public double destZ() { var p = net.minecraft.client.Minecraft.getInstance().player; return p == null ? 0 : p.getZ(); }
+    @Override protected float rowLength() { return 120f; }
+    @Override protected float rowSpacing() { return 2.5f; }
+    @Override protected String expectedToolId() { return "PUMPKIN_DICER"; }
 }

@@ -3,10 +3,13 @@ package com.zenith.client.engine.input;
 /**
  * Simulates key presses via Minecraft's keybinding system.
  *
- * <p>Phase 2/3 API surface: concrete wiring to {@code KeyBinding.setPressed}
- * happens in Phase 4 when MixinKeyboardHandler is filled in. This class
- * accumulates desired key states per tick so the input engine doesn't call
- * Minecraft directly.</p>
+ * <p>Writes directly to {@code Minecraft.options.key*}.setDown() — the
+ * same path vanilla uses when a physical key is held. This is the only
+ * place that touches MC key state (master rule §3, §9); all macro/path
+ * code goes through this class.</p>
+ *
+ * <p>Reflection fallback is used for mapping drift in 26.1 — field names
+ * may be keyUp/forward vs keyForward depending on mappings; we try both.</p>
  */
 public final class KeySimulator {
 
@@ -34,8 +37,75 @@ public final class KeySimulator {
     public boolean use()     { return use; }
     public boolean attack()  { return attack; }
 
-    /** Called once per tick by the input engine to push state to MC. Phase 4 wires KeyBinding. */
+    /**
+     * Push accumulated desired state into MC's Options KeyMappings.
+     * Must run on the main thread each tick.
+     */
     public void flush() {
-        // Phase 4: set KeyBinding pressed state on Options keys.
+        try {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc == null || mc.options == null) return;
+            var opts = mc.options;
+            // Mojang names in 26.1 unobfuscated: keyUp, keyDown, keyLeft, keyRight,
+            // keyJump, keyShift (sneak), keySprint, keyAttack, keyUse.
+            // Some versions name sneak as keyShift. Use reflection-tolerant setter.
+            setKeyDown(opts, "keyUp", "keyForward", forward);
+            setKeyDown(opts, "keyDown", "keyBack", back);
+            setKeyDown(opts, "keyLeft", null, left);
+            setKeyDown(opts, "keyRight", null, right);
+            setKeyDown(opts, "keyJump", null, jump);
+            setKeyDown(opts, "keyShift", "keySneak", sneak);
+            setKeyDown(opts, "keySprint", null, sprint);
+            setKeyDown(opts, "keyAttack", null, attack);
+            setKeyDown(opts, "keyUse", null, use);
+        } catch (Throwable t) {
+            com.zenith.client.ZenithClient.LOGGER.debug("[KeySimulator] flush failed", t);
+        }
+    }
+
+    private static void setKeyDown(Object options, String primary, String fallback, boolean down) {
+        try {
+            java.lang.reflect.Field f = null;
+            try { f = options.getClass().getField(primary); }
+            catch (NoSuchFieldException e) {
+                if (fallback != null) {
+                    try { f = options.getClass().getField(fallback); }
+                    catch (NoSuchFieldException ex) { /* try declared */ }
+                }
+            }
+            if (f == null) {
+                try { f = options.getClass().getDeclaredField(primary); }
+                catch (NoSuchFieldException e) {
+                    if (fallback != null) f = options.getClass().getDeclaredField(fallback);
+                }
+            }
+            if (f == null) return;
+            f.setAccessible(true);
+            Object km = f.get(options);
+            if (km == null) return;
+            // KeyMapping#setDown(boolean) in Mojang
+            try {
+                var m = km.getClass().getMethod("setDown", boolean.class);
+                m.invoke(km, down);
+            } catch (NoSuchMethodException nsme) {
+                // Some versions use set(boolean)
+                try {
+                    var m2 = km.getClass().getMethod("set", boolean.class);
+                    m2.invoke(km, down);
+                } catch (Exception ignored) {
+                    // final fallback: field 'isDown' or 'down'
+                    try {
+                        var ff = km.getClass().getField("down");
+                        ff.setBoolean(km, down);
+                    } catch (Exception ignored2) {
+                        var df = km.getClass().getDeclaredField("isDown");
+                        df.setAccessible(true);
+                        df.setBoolean(km, down);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // silent - don't crash tick loop on keybind drift
+        }
     }
 }

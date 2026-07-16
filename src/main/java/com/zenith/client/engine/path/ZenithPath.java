@@ -138,13 +138,29 @@ public final class ZenithPath {
 
     public PathDebugData debugData() {
         boolean stuck = executor.needsRepath();
+        double distToTarget = 0;
+        try {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            double px = mc.player != null ? mc.player.getX() : 0;
+            double pz = mc.player != null ? mc.player.getZ() : 0;
+            if (current != null) {
+                distToTarget = Math.hypot(current.toX - px, current.toZ - pz);
+            }
+        } catch (Throwable ignored) {}
+        // lastResult.nodes may be large; executedNodes we approximate from executor.currentIndex via reflection
+        int executed = 0;
+        try {
+            var f = executor.getClass().getDeclaredField("currentIndex");
+            f.setAccessible(true);
+            executed = (int)f.get(executor);
+        } catch (Throwable ignored) {}
         return new PathDebugData(
                 executor.state().name(),
                 current != null ? current.mode.name() : "IDLE",
                 lastResult != null ? lastResult.nodes.size() : 0,
-                0,
+                executed,
                 lastResult != null ? lastResult.totalCost : 0,
-                current != null ? Math.hypot(current.toX - 0, current.toZ - 0) : 0,
+                distToTarget,
                 speed.currentSpeedBps(),
                 stuck,
                 stuck ? "recovery" : "",

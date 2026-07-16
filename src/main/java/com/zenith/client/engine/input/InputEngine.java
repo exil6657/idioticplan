@@ -72,14 +72,28 @@ public final class InputEngine {
     }
 
     private void applyMovement(MovementSimulator.MovementInput mi) {
-        keys.halt();
+        // Don't halt attack/use here — those are managed by macros/combat.
+        // Only clear movement keys; macros explicitly set attack/use.
+        boolean keepAttack = keys.attack();
+        boolean keepUse = keys.use();
+        keys.setForward(false);
+        keys.setBack(false);
+        keys.setLeft(false);
+        keys.setRight(false);
+        keys.setJump(false);
+        keys.setSprint(false);
+        // restore attack/use if macro holds them
+        if (keepAttack) keys.setAttack(true);
+        if (keepUse) keys.setUse(true);
+
         float f = mi.forward();
         float s = mi.strafe();
         if (f > 0.05f) keys.setForward(true);
         else if (f < -0.05f) keys.setBack(true);
-        if (s > 0.05f) keys.setLeft(true);
-        else if (s < -0.05f) keys.setRight(true);
-        keys.setJump(mi.jump());
+        if (s > 0.05f) keys.setRight(true); // strafe right = D
+        else if (s < -0.05f) keys.setLeft(true); // strafe left = A
+        // Jump is edge-triggered; only press if requested and on ground
+        if (mi.jump() && onGround) keys.setJump(true);
         keys.setSprint(mi.sprint());
     }
 
