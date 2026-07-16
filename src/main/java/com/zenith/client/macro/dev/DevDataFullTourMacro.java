@@ -71,19 +71,67 @@ public final class DevDataFullTourMacro extends MacroModule {
     private static final long EXTRA_WAIT = 2000L;
 
     // Full warp list — best-effort; some may not exist on older profiles, server will reply unknown warp in chat (harvester captures)
+    // Full warp list — best-effort; server replies unknown warp in chat (harvester captures) — R043
+    // Source: Travel Scrolls wiki 2026 + community list
     private static final String[] WARPS = {
-            "barn", "park", "deep", "gold", "spider", "end", "isle", "nether",
-            "mines", "da", "museum", "wizard", "crypt", "desert", "forest",
-            "jungle", "howl", "dwarven", "crystal", "mordor" // last few intentionally invalid to test unknown response capture
+            // Farming / Foraging
+            "barn", "park", "desert", "forest", "jungle", "howl",
+            // Mining
+            "deep", "gold", "mines", "dwarven", "crystal", "glacite", "forge",
+            // Combat
+            "spider", "crypt", "nest", "end", "isle", "nether", "crimson",
+            // Hub / Event
+            "hub", "da", "museum", "wizard", "dungeon_hub", "dhub", "kuudra",
+            // Garden / Rift (some are commands not warps but we try as warps to capture failure message)
+            "garden", "rift",
+            // Invalid probes to capture unknown warp chat format
+            "mordor", "invalidwarp123"
     };
 
-    // Extra GUIs to snapshot via commands (safe: just opens GUI, no purchase)
+    // Extra GUIs to snapshot via commands (safe: just opens GUI, no purchase) — R006-R035 cover
     private static final String[] EXTRA_COMMANDS = {
-            "/pets", "/pet", "/wardrobe", "/storage", "/ec", "/enderchest", "/sacks",
-            "/collection", "/skills", "/museum", "/garden", "/sbmenu",
-            "/bestiary", "/recipes", "/trades", "/calendar", "/bank",
-            "/gfs", "/ah", "/bz", "/wardrobe", "/accessories", "/accessorybag",
-            "/mayor", "/election"
+            "/sbmenu", "/menu", "/skyblock",
+            "/pets", "/pet", "/petmenu", "/petsmenu",
+            "/wardrobe", "/wardrobemenu",
+            "/storage", "/storagemenu",
+            "/ec", "/enderchest", "/echest", "/enderchestmenu",
+            "/sacks", "/sack", "/sackmenu",
+            "/accessorybag", "/accessories", "/talisman", "/talismans",
+            "/collection", "/collections", "/collectionmenu",
+            "/skills", "/skill", "/skillsmenu",
+            "/museum", "/museummenu",
+            "/garden", "/gardenmenu", "/plot", "/desk",
+            "/bestiary", "/bestiarymenu",
+            "/recipes", "/recipe", "/recipemenu",
+            "/trades", "/trademenu",
+            "/calendar", "/cal",
+            "/bank", "/personalbank",
+            "/gfs", "/gift",
+            "/bazaar", "/bz",
+            "/ah", "/auction", "/auctionhouse",
+            "/mayor", "/election", "/mayors",
+            "/bingo", "/bingocard",
+            "/craft", "/craftmenu",
+            "/runes", "/rune", "/runemenu",
+            "/potion", "/potions", "/potionbag",
+            "/anvil", "/enchant", "/enchanting",
+            "/dungeons", "/dungeon", "/dungeonhub", "/dhub", "/catacombs",
+            "/kuudra", "/kuudramenu",
+            "/rift", "/riftmenu", "/riftstuck",
+            "/warp", "/warpmenu", "/travel", "/travelmenu",
+            "/maps", "/map",
+            "/quests", "/quest", "/questlog",
+            "/hotm", "/hotmmenu", "/heart", "/mountain", "/hotf", "/hotfmenu",
+            "/forge", "/forgemenu", "/powder", "/powdermenu",
+            "/trophy", "/trophyfish", "/fishing",
+            "/slayer", "/slayermenu", "/md", "/maddox",
+            "/chocolate", "/chocolatefactory", "/cf",
+            "/carnival", "/carnivalmenu",
+            "/community", "/communitymenu",
+            "/essence", "/essenceshop",
+            "/reforge", "/reforgemenu",
+            "/minions", "/minion",
+            "/is", "/island"
     };
 
     private final GUISlotFinder finder = new GUISlotFinder();
