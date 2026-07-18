@@ -41,24 +41,50 @@ public final class SignInputHandler {
     /** Queue text to be typed into the sign the next tick we're on one. */
     public void requestType(String text) { this.pendingText = text; }
 
+    private long lastSubmitMs = 0;
+
     /** Called each tick by {@link GUIInteractionEngine}. Types pending text and clicks Done. */
     public void tick() {
         if (pendingText == null) return;
         Minecraft mc = Minecraft.getInstance();
         if (!(mc.screen instanceof SignEditScreen sign)) return;
+        // Debounce - don't spam onDone faster than 200ms
+        if (System.currentTimeMillis() - lastSubmitMs < 200) return;
         String text = pendingText;
         pendingText = null;
         try {
             setSignLine(sign, 0, text);
-            Method onDone = findMethod(sign.getClass(), "onDone");
+            // Also clear other lines to avoid garbage
+            for (int i = 1; i < 4; i++) {
+                try { setSignLine(sign, i, ""); } catch (Throwable ignored) {}
+            }
+            Method onDone = findMethod(sign.getClass(), "onDone", "onClose", "close", "submit", "method_31460");
             if (onDone != null) {
                 onDone.setAccessible(true);
+                lastSubmitMs = System.currentTimeMillis();
                 mc.execute(() -> {
                     try { onDone.invoke(sign); }
                     catch (Throwable t) { ZenithClient.LOGGER.warn("[SignInput] onDone failed", t); }
                 });
             } else {
-                ZenithClient.LOGGER.warn("[SignInput] could not find onDone method on SignEditScreen");
+                // Fallback: try to invoke via button click — look for Done button in screen
+                try {
+                    var buttonField = findField(sign.getClass(), "doneButton", "confirmButton");
+                    if (buttonField != null) {
+                        buttonField.setAccessible(true);
+                        Object btn = buttonField.get(sign);
+                        if (btn != null) {
+                            var onPressM = btn.getClass().getMethod("onPress");
+                            onPressM.setAccessible(true);
+                            mc.execute(() -> {
+                                try { onPressM.invoke(btn); } catch (Throwable ignored) {}
+                            });
+                            lastSubmitMs = System.currentTimeMillis();
+                            return;
+                        }
+                    }
+                } catch (Throwable ignored) {}
+                ZenithClient.LOGGER.warn("[SignInput] could not find onDone method on SignEditScreen — methods: {}", java.util.Arrays.toString(sign.getClass().getDeclaredMethods()));
             }
         } catch (Throwable t) {
             ZenithClient.LOGGER.warn("[SignInput] failed to type '{}'", text, t);
@@ -67,9 +93,14 @@ public final class SignInputHandler {
 
     // ---- Internals ----
 
-    private static Method findMethod(Class<?> c, String name) {
-        for (Method m : c.getDeclaredMethods()) if (m.getName().equals(name)) return m;
-        if (c.getSuperclass() != null) return findMethod(c.getSuperclass(), name);
+    private static Method findMethod(Class<?> c, String... names) {
+        for (String name : names) {
+            for (Method m : c.getDeclaredMethods()) if (m.getName().equals(name)) return m;
+        }
+        if (c.getSuperclass() != null) {
+            Method f = findMethod(c.getSuperclass(), names);
+            if (f != null) return f;
+        }
         return null;
     }
 
@@ -113,18 +144,55 @@ public final class SignInputHandler {
         // Direct list/array?
         if (setDirectLine(obj, line, value)) return true;
         // It might be a SignText with a `messages` (Text[]) field (1.20+).
-        Field messages = findField(obj.getClass(), "messages", "filteredMessages");
+        Field messages = findField(obj.getClass(), "messages", "filteredMessages", "a", "b");
         if (messages != null) {
             messages.setAccessible(true);
             Object arr = messages.get(obj);
             if (arr instanceof Object[] txt) {
                 if (line < txt.length) {
-                    txt[line] = Component.literal(value);
+                    // Try to create Component via appropriate class (Component vs Text)
+                    Object comp = tryCreateComponent(value);
+                    txt[line] = comp;
+                    return true;
+                }
+            }
+            // Maybe it's a List
+            if (arr instanceof java.util.List<?> list) {
+                if (line < list.size()) {
+                    @SuppressWarnings("unchecked")
+                    java.util.List<Object> l = (java.util.List<Object>) list;
+                    l.set(line, tryCreateComponent(value));
+                    return true;
+                }
+            }
+        }
+        // Try SignText record constructor path: if obj has method getMessages(int) maybe?
+        // Look for field that is a record with messages + filteredMessages + color + glowing flag
+        // As last resort, look for any Text[] field in the class
+        for (Field f : obj.getClass().getDeclaredFields()) {
+            if (f.getType().isArray()) {
+                f.setAccessible(true);
+                Object arr = f.get(obj);
+                if (arr instanceof Object[] txt && txt.length == 4) {
+                    // likely the messages array
+                    txt[line] = tryCreateComponent(value);
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    private static Object tryCreateComponent(String value) {
+        try { return Component.literal(value); }
+        catch (Throwable t) {
+            try {
+                // 1.20+ Text.literal?
+                Class<?> textClz = Class.forName("net.minecraft.network.chat.Component");
+                var m = textClz.getMethod("literal", String.class);
+                return m.invoke(null, value);
+            } catch (Throwable ignored) { return value; }
+        }
     }
 
     private static boolean setDirectLine(Object target, int line, String value) {

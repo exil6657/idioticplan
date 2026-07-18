@@ -42,8 +42,89 @@ public final class PlayerKeybindReader {
     }
 
     private void resolveFromOptions() {
-        // Phase 3: use OptionsAccessor on Minecraft.getInstance().options to read key->code mappings.
-        // Phase 2: leave defaults as populated below.
+        try {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc == null || mc.options == null) return;
+            var opts = mc.options;
+            // Try to read each mapped key by matching mcName() to Options field name via reflection
+            for (KeybindMapper mapper : KeybindMapper.values()) {
+                try {
+                    String mcName = mapper.mcName(); // e.g. "key.forward"
+                    // Find field in Options whose KeyMapping has same name or translation key
+                    // Simplify: direct field access for known names: keyUp = forward, etc.
+                    String fieldGuess = switch (mapper) {
+                        case FORWARD -> "keyUp";
+                        case BACK -> "keyDown";
+                        case LEFT -> "keyLeft";
+                        case RIGHT -> "keyRight";
+                        case JUMP -> "keyJump";
+                        case SNEAK -> "keyShift";
+                        case SPRINT -> "keySprint";
+                        case ATTACK -> "keyAttack";
+                        case USE, USE_BLOCK -> "keyUse";
+                        case DROP -> "keyDrop";
+                        case INVENTORY -> "keyInventory";
+                        case CHAT -> "keyChat";
+                        case COMMAND -> "keyCommand";
+                        case SWAP_HANDS -> "keySwapOffhand";
+                        default -> null;
+                    };
+                    if (fieldGuess == null && mapper.name().startsWith("HOTBAR_")) {
+                        int idx = Integer.parseInt(mapper.name().substring(7));
+                        fieldGuess = "keyHotbar_" + idx + "\""; // try
+                        // actual field name pattern in 1.21: keyHotbarSlots[0..8] array
+                        // fallback: read array field
+                        try {
+                            var hotbarField = opts.getClass().getField("keyHotbarSlots");
+                            hotbarField.setAccessible(true);
+                            Object arr = hotbarField.get(opts);
+                            if (arr != null && arr.getClass().isArray()) {
+                                Object km = java.lang.reflect.Array.get(arr, idx-1);
+                                if (km != null) {
+                                    var keyField = km.getClass().getMethod("getKey");
+                                    Object key = keyField.invoke(km);
+                                    int code = extractKeyCode(key);
+                                    if (code != 0) lastResolved.put(mapper, code);
+                                }
+                            }
+                            continue;
+                        } catch (Throwable ignored) {}
+                    }
+                    if (fieldGuess == null) continue;
+                    java.lang.reflect.Field f;
+                    try { f = opts.getClass().getField(fieldGuess); }
+                    catch (NoSuchFieldException e) { f = opts.getClass().getDeclaredField(fieldGuess); }
+                    f.setAccessible(true);
+                    Object km = f.get(opts);
+                    if (km == null) continue;
+                    var keyFieldM = km.getClass().getMethod("getKey");
+                    Object key = keyFieldM.invoke(km);
+                    int code = extractKeyCode(key);
+                    if (code != 0) lastResolved.put(mapper, code);
+                } catch (Throwable ignored) {
+                    // keep default
+                }
+            }
+        } catch (Throwable t) {
+            com.zenith.client.ZenithClient.LOGGER.debug("[KeybindReader] resolve failed", t);
+        }
+    }
+
+    private int extractKeyCode(Object inputKey) {
+        if (inputKey == null) return 0;
+        try {
+            // InputConstants$Key -> getValue()
+            var getValue = inputKey.getClass().getMethod("getValue");
+            Object v = getValue.invoke(inputKey);
+            if (v instanceof Integer i) return i;
+            // some versions store Type+code composite
+        } catch (Throwable ignored) {}
+        try {
+            var field = inputKey.getClass().getField("keyCode");
+            field.setAccessible(true);
+            return field.getInt(inputKey);
+        } catch (Throwable ignored) {}
+        return 0;
     }
 
     /** Default WASD layout — only used until Options wiring is in place. */

@@ -96,10 +96,17 @@ public final class BazaarCategory {
         String s = in.toLowerCase(Locale.ROOT).trim();
         if (s.contains("farm") || s.contains("crop")) return FARMING;
         if (s.contains("mine") || s.contains("ore") || s.contains("stone") || s.contains("gem")) return MINING;
-        if (s.contains("combat") || s.contains("mob") || s.contains("loot")) return COMBAT;
-        if (s.contains("wood") || s.contains("fish") || s.contains("log") || s.contains("prismar")) return WOODS_FISHES;
+        if (s.contains("combat") || s.contains("mob") || s.contains("loot") || s.contains("slayer")) return COMBAT;
+        if (s.contains("wood") || s.contains("fish") || s.contains("log") || s.contains("prismar") || s.contains("foraging")) return WOODS_FISHES;
         if (s.contains("odd")) return ODDITIES;
-        return in;
+        // If input already looks like a category name (exact), return as-is capitalized
+        for (String known : new String[]{FARMING, MINING, COMBAT, WOODS_FISHES, ODDITIES}) {
+            if (s.equalsIgnoreCase(known) || known.toLowerCase(Locale.ROOT).contains(s) || s.contains(known.toLowerCase(Locale.ROOT))) {
+                return known;
+            }
+        }
+        // Fallback: if unknown, default to ODDITIES rather than returning raw product id which would never match GUI
+        return ODDITIES;
     }
 
     private BazaarCategory() {}

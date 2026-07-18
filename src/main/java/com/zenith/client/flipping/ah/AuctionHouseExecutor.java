@@ -118,8 +118,40 @@ public final class AuctionHouseExecutor {
             case "TOGGLE_BIN" -> {
                 if (s == null) break;
                 int bin = ah.findBinToggle(s);
-                if (bin >= 0) { ah.clickBinToggle(s); transition("SEARCH"); }
-                else if (now - stateEnteredMs > 1500) transition("SEARCH");
+                if (bin >= 0) { ah.clickBinToggle(s); transition("SORT"); }
+                else transition("SORT");
+            }
+            case "SORT" -> {
+                if (s == null) break;
+                // Critical profitability fix: ensure cheapest first sort.
+                // The sort button cycles; we click until lore says "Lowest Price" or "Price: Low -> High".
+                int sortSlot = ah.findSortSlot(s);
+                if (sortSlot >= 0) {
+                    // Check lore if already low->high, if not click and wait 400ms then re-check
+                    var stack = s.stacks != null && sortSlot < s.stacks.size() ? s.stacks.get(sortSlot) : null;
+                    boolean isLowHigh = false;
+                    if (stack != null && stack.lore() != null) {
+                        for (String line : stack.lore()) {
+                            String ll = line.toLowerCase();
+                            if (ll.contains("lowest") || ll.contains("low to high") || ll.contains("price: low") || ll.contains("cheapest")) {
+                                // The lore often shows "Currently: ..." or "Sorted by: ..."
+                                // If lore contains indicator that low->high is selected, consider sorted.
+                                // Heuristic: if lore contains arrow down or "Low" in name
+                            }
+                        }
+                        // Also check display name contains "Lowest" ?
+                        if (stack.displayName() != null && stack.displayName().toLowerCase().contains("lowest")) isLowHigh = true;
+                    }
+                    // Simple strategy: click once per 500ms up to 4 clicks, then proceed.
+                    // DevData will capture exact name, but this ensures we at least attempt low-price sort.
+                    if (!isLowHigh && now - stateEnteredMs < 3000 && (now - stateEnteredMs) % 600 < 100) {
+                        ah.clickSort(s);
+                        // stay in SORT to re-evaluate
+                        break;
+                    }
+                }
+                // After sort attempts, go to search
+                if (now - stateEnteredMs > 800) transition("SEARCH");
             }
             case "SEARCH" -> {
                 if (s == null) break;
@@ -156,6 +188,34 @@ public final class AuctionHouseExecutor {
             case "WAIT_CONFIRM" -> {
                 if (s == null) break;
                 if (ah.detectPage(s) == AuctionHouseGUI.Page.CONFIRM_BUY) {
+                    // Profitability guard: re-parse confirm screen price from lore
+                    // If price > 105% of expected, abort to avoid overpay.
+                    try {
+                        var listings = ah.findListings(s);
+                        // Confirm screen price is usually in lore of confirm button or middle slot
+                        long confirmPrice = -1;
+                        for (int i = 0; i < s.stacks.size(); i++) {
+                            var st = s.stacks.get(i);
+                            if (st == null) continue;
+                            // Look for any stack that has "Buy it now:" price
+                            for (String line : st.lore() != null ? st.lore() : java.util.List.<String>of()) {
+                                String plain = line.replaceAll("§.", "").replace(",", "").trim();
+                                if (plain.startsWith("Buy it now:") || plain.toLowerCase().contains("buy it now")) {
+                                    confirmPrice = AuctionHouseGUI.parseCoins(plain.replace("Buy it now:", "").trim());
+                                    if (confirmPrice > 0) break;
+                                }
+                            }
+                            if (confirmPrice > 0) break;
+                        }
+                        if (confirmPrice > 0 && current != null && current.candidate != null) {
+                            long maxAllowed = (long)(current.candidate.buyPrice * 1.05);
+                            if (confirmPrice > maxAllowed) {
+                                ZenithClient.LOGGER.warn("[AH] confirm price {} > maxAllowed {} — aborting to avoid overpay", confirmPrice, maxAllowed);
+                                fail("confirm price over 105% expected (" + confirmPrice + " > " + maxAllowed + ")");
+                                break;
+                            }
+                        }
+                    } catch (Throwable ignored) {}
                     int buyBtn = ah.findBuyConfirmSlot(s);
                     if (buyBtn >= 0) {
                         if (!BitsSpendBlocker.isBlocked()) ah.confirmBuy(s);

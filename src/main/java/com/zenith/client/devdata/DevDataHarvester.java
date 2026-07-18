@@ -103,6 +103,14 @@ public final class DevDataHarvester {
     private final Set<String> worldsVisited = new LinkedHashSet<>();
     /** Entity types in render distance (type id string, e.g. "minecraft: zombie"). */
     private final Set<String> entityTypesSeen = new TreeSet<>();
+    /** Detailed nearby entities with custom name + position + distance — for NPC location mapping (R006) */
+    private final Set<String> nearbyEntitiesDetailed = new LinkedHashSet<>();
+    /** Blocks observed at player feet / target — for farming/mining walkability calibration */
+    private final Set<String> blocksObserved = new LinkedHashSet<>();
+    /** Held hotbar item lore snapshot */
+    private final Set<String> heldItemLore = new LinkedHashSet<>();
+    /** Location / biome / dimension context */
+    private final Set<String> locationContext = new LinkedHashSet<>();
     /** Freeform manual notes from {@code .z devdata note ...}. */
     private final List<String> manualNotes = new ArrayList<>();
 
@@ -436,16 +444,100 @@ public final class DevDataHarvester {
             }
         } catch (Exception e) { ZenithClient.LOGGER.debug("[DevData] tab snapshot failed", e); }
 
-        // Nearby entity types
+        // Nearby entity types + detailed
         try {
             if (mc.level != null && mc.player != null) {
+                double px = mc.player.getX(), py = mc.player.getY(), pz = mc.player.getZ();
                 mc.level.entitiesForRendering().forEach(e -> {
                     if (e == mc.player) return;
-                    String id = e.getType().builtInRegistryHolder().key().location().toString();
-                    if (id != null) entityTypesSeen.add(id);
+                    try {
+                        String id = e.getType().builtInRegistryHolder().key().location().toString();
+                        if (id != null) entityTypesSeen.add(id);
+
+                        // Detailed: name, pos, distance
+                        String customName = "";
+                        try {
+                            if (e.getCustomName() != null) customName = stripFormatting(e.getCustomName().getString());
+                            else if (e.getDisplayName() != null) {
+                                String dn = stripFormatting(e.getDisplayName().getString());
+                                if (!dn.equals(id) && dn.length() < 100) customName = dn;
+                            }
+                        } catch (Throwable ignored) {}
+
+                        // Only log entities within 32 blocks that have custom name or are NPC-like
+                        double dx = e.getX() - px, dy = e.getY() - py, dz = e.getZ() - pz;
+                        double dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                        if (dist <= 32.0 && (customName != null && !customName.isBlank() || e instanceof net.minecraft.world.entity.npc.AbstractVillager || e instanceof net.minecraft.world.entity.decoration.ArmorStand || e instanceof net.minecraft.world.entity.player.Player)) {
+                            String detail = String.format(Locale.ROOT, "%s | name='%s' | pos=%.1f,%.1f,%.1f d=%.1f | type=%s%s",
+                                    stripFormatting(e.getType().getDescription().getString()),
+                                    customName == null ? "" : customName.replace("|", "/"),
+                                    e.getX(), e.getY(), e.getZ(),
+                                    dist,
+                                    id,
+                                    e.isInvisible() ? " INVIS" : "");
+                            // Deduplicate by name+block pos rounded
+                            String key = detail.substring(0, Math.min(detail.length(), 200));
+                            nearbyEntitiesDetailed.add(key);
+                        }
+                    } catch (Throwable ignored) {}
                 });
             }
         } catch (Exception e) { ZenithClient.LOGGER.debug("[DevData] entity snapshot failed", e); }
+
+        // Blocks at player feet and target + held item
+        try {
+            if (mc.level != null && mc.player != null) {
+                // Block at feet
+                var feetPos = net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY() - 0.1, mc.player.getZ());
+                var feetState = mc.level.getBlockState(feetPos);
+                String feetId = feetState.getBlock().builtInRegistryHolder().key().location().toString();
+                blocksObserved.add(String.format("feet block %s at %d,%d,%d", feetId, feetPos.getX(), feetPos.getY(), feetPos.getZ()));
+
+                // Block looking at (raytrace up to 8 blocks)
+                try {
+                    var look = mc.player.getLookAngle();
+                    var eyes = mc.player.getEyePosition(1f);
+                    var target = eyes.add(look.scale(6.0));
+                    var ctx = new net.minecraft.world.level.ClipContext(eyes, target, net.minecraft.world.level.ClipContext.Block.COLLIDER, net.minecraft.world.level.ClipContext.Fluid.NONE, mc.player);
+                    var hit = mc.level.clip(ctx);
+                    if (hit != null && hit.getType() != net.minecraft.world.phys.BlockHitResult.Type.MISS) {
+                        var bp = hit.getBlockPos();
+                        var bs = mc.level.getBlockState(bp);
+                        String bid = bs.getBlock().builtInRegistryHolder().key().location().toString();
+                        blocksObserved.add(String.format("target block %s at %d,%d,%d facing %s", bid, bp.getX(), bp.getY(), bp.getZ(), hit.getDirection()));
+                    }
+                } catch (Throwable ignored) {}
+
+                // Held item
+                try {
+                    var held = mc.player.getMainHandItem();
+                    if (held != null && !held.isEmpty()) {
+                        String hover = held.getHoverName() != null ? stripFormatting(held.getHoverName().getString()) : "?";
+                        String sbId = "?";
+                        try {
+                            // try ExtraAttributes id via custom data
+                            var tag = held.getComponents().get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                            if (tag != null) {
+                                var copy = tag.copyTag();
+                                if (copy.contains("ExtraAttributes")) {
+                                    var ea = copy.getCompound("ExtraAttributes");
+                                    if (ea.contains("id")) sbId = ea.getString("id");
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                        heldItemLore.add(String.format("held %s | sbId=%s | count=%d foil=%b", hover, sbId, held.getCount(), held.hasFoil()));
+                    }
+                } catch (Throwable ignored) {}
+
+                // Location context: biome, dimension
+                try {
+                    String dim = mc.level.dimension().location().toString();
+                    var biomeHolder = mc.level.getBiome(net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()));
+                    String biome = biomeHolder.unwrapKey().map(k -> k.location().toString()).orElse("?");
+                    locationContext.add(String.format("dim=%s biome=%s pos=%.1f,%.1f,%.1f", dim, biome, mc.player.getX(), mc.player.getY(), mc.player.getZ()));
+                } catch (Throwable ignored) {}
+            }
+        } catch (Exception e) { ZenithClient.LOGGER.debug("[DevData] block/held snapshot failed", e); }
     }
 
     private static Component getComponentField(Object o, String... names) {
@@ -660,6 +752,10 @@ public final class DevDataHarvester {
         sb.append("| Chat lines (context + normalised) | ").append(chatLines.size()).append(" |\n");
         sb.append("| Worlds/locations visited | ").append(worldsVisited.size()).append(" |\n");
         sb.append("| Entity types seen | ").append(entityTypesSeen.size()).append(" |\n");
+        sb.append("| Detailed nearby entities (NPCs) | ").append(nearbyEntitiesDetailed.size()).append(" |\n");
+        sb.append("| Blocks observed (feet/target) | ").append(blocksObserved.size()).append(" |\n");
+        sb.append("| Held item lore | ").append(heldItemLore.size()).append(" |\n");
+        sb.append("| Location context (dim/biome/pos) | ").append(locationContext.size()).append(" |\n");
         sb.append("| Manual notes | ").append(manualNotes.size()).append(" |\n");
         sb.append('\n');
 
@@ -777,6 +873,39 @@ public final class DevDataHarvester {
         if (entityTypesSeen.isEmpty()) sb.append("_None observed yet._\n\n");
         else {
             for (String e : entityTypesSeen) sb.append("- `").append(e).append("`\n");
+            sb.append('\n');
+        }
+
+        // Detailed nearby entities (NPCs) — R006
+        sb.append("## Nearby Entities Detailed (NPC locations, names, positions) — R006\n\n");
+        sb.append("Use for Hub NPC navigator (bank, bazaar, auction, museum, etc), Garden visitors, Rift NPCs.\n\n");
+        if (nearbyEntitiesDetailed.isEmpty()) sb.append("_None observed yet — stand near Hub NPCs._\n\n");
+        else {
+            for (String e : nearbyEntitiesDetailed) sb.append("- `").append(escapeMd(e)).append("`\n");
+            sb.append('\n');
+        }
+
+        // Blocks observed
+        sb.append("## Blocks Observed (feet / target) — for farming/mining walkability (R015,R036?)\n\n");
+        if (blocksObserved.isEmpty()) sb.append("_None yet._\n\n");
+        else {
+            for (String b : blocksObserved) sb.append("- `").append(escapeMd(b)).append("`\n");
+            sb.append('\n');
+        }
+
+        // Held item lore
+        sb.append("## Held Item Lore — R025 item abilities, tool stats\n\n");
+        if (heldItemLore.isEmpty()) sb.append("_Hold an AOTE, hoe, drill, etc and snapshot._\n\n");
+        else {
+            for (String h : heldItemLore) sb.append("- `").append(escapeMd(h)).append("`\n");
+            sb.append('\n');
+        }
+
+        // Location context
+        sb.append("## Location Context — dimension/biome/pos for IslandTypeDetector\n\n");
+        if (locationContext.isEmpty()) sb.append("_None yet._\n\n");
+        else {
+            for (String l : locationContext) sb.append("- `").append(escapeMd(l)).append("`\n");
             sb.append('\n');
         }
 

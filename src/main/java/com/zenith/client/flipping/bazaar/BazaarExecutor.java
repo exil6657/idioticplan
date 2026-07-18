@@ -174,7 +174,7 @@ public final class BazaarExecutor {
             case "WAIT_QUANTITY", "WAIT_QUANTITY_SELL",
                  "WAIT_QUANTITY_CREATE_BUY", "WAIT_QUANTITY_CREATE_SELL" -> {
                 if (SignInputHandler.getInstance().isInSignScreen()) {
-                    SignInputHandler.getInstance().requestType(Integer.toString(Math.max(1, pendingCount)));
+                    SignInputHandler.getInstance().requestType(formatCount(pendingCount));
                     transition(nextAfterQuantity());
                 } else if (s != null) {
                     BazaarGUI.Page p = bz.detectPage(s);
@@ -306,10 +306,18 @@ public final class BazaarExecutor {
         reset();
     }
 
+    /**
+     * Format coin value for Bazaar sign input.
+     * Hypixel bazaar quantity signs accept plain integers; price signs historically
+     * accept K/M but inconsistently — to be safe we send plain integer (no commas,
+     * no suffix) which is always accepted. Verification via DevData tour pending.
+     */
     private static String formatPrice(long price) {
-        if (price >= 1_000_000_000L) return String.format("%.2fB", price / 1_000_000_000d);
-        if (price >= 1_000_000L)     return String.format("%.2fM", price / 1_000_000d);
-        if (price >= 1_000L)         return String.format("%.1fk", price / 1_000d);
         return Long.toString(Math.max(1L, price));
+    }
+
+    /** Format count for quantity sign — plain integer. */
+    private static String formatCount(int count) {
+        return Integer.toString(Math.max(1, count));
     }
 }

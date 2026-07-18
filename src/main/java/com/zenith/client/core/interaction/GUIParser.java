@@ -76,32 +76,101 @@ public final class GUIParser {
     private static GUIItemStack toSnapshot(ItemStack is) {
         if (is == null || is.isEmpty()) return null;
         String name = "";
-        if (is.getHoverName() != null) name = is.getHoverName().getString();
+        try { if (is.getHoverName() != null) name = is.getHoverName().getString(); } catch (Throwable ignored) {}
         List<String> lore = new ArrayList<>();
+        String sbId = "";
+        boolean ench = false;
+        boolean glint = false;
+        try { glint = is.hasFoil(); } catch (Throwable ignored) {}
+        try { ench = !is.getEnchantments().isEmpty(); } catch (Throwable ignored) {}
+
+        // ---- Modern 26.1 path: DataComponents API ----
         try {
-            var tag = is.getTag();
-            if (tag != null && tag.contains("display", 10)) {
-                var display = tag.getCompound("display");
-                if (display.contains("Lore", 9)) {
-                    var loreList = display.getList("Lore", 8);
-                    for (int i = 0; i < loreList.size(); i++) {
-                        String raw = loreList.getString(i);
-                        lore.add(stripFormatting(raw));
+            // Try to read lore via DataComponents.LORE
+            // reflections avoid compile-time dependency drift
+            Class<?> dcClass = Class.forName("net.minecraft.core.component.DataComponents");
+            Object loreCompType = dcClass.getField("LORE").get(null);
+            var getMethod = is.getClass().getMethod("get", Class.forName("net.minecraft.core.component.DataComponentType"));
+            Object loreComp = getMethod.invoke(is, loreCompType);
+            if (loreComp != null) {
+                var linesM = loreComp.getClass().getMethod("lines");
+                Object lines = linesM.invoke(loreComp);
+                if (lines instanceof List<?> lst) {
+                    for (Object lineObj : lst) {
+                        if (lineObj instanceof Component c) lore.add(stripFormatting(c.getString()));
+                        else lore.add(stripFormatting(lineObj.toString()));
                     }
                 }
             }
-        } catch (Exception e) { ZenithClient.LOGGER.debug("[GUIParser] lore read failed", e); }
-        String sbId = "";
+        } catch (Throwable ignored) {
+            // fallback to legacy display tag
+            try {
+                var getTagM = is.getClass().getMethod("getTag");
+                Object tag = getTagM.invoke(is);
+                if (tag != null) {
+                    var containsM = tag.getClass().getMethod("contains", String.class, int.class);
+                    var getCompoundM = tag.getClass().getMethod("getCompound", String.class);
+                    if ((boolean)containsM.invoke(tag, "display", 10)) {
+                        Object display = getCompoundM.invoke(tag, "display");
+                        var containsM2 = display.getClass().getMethod("contains", String.class, int.class);
+                        if ((boolean)containsM2.invoke(display, "Lore", 9)) {
+                            var getListM = display.getClass().getMethod("getList", String.class, int.class);
+                            Object loreList = getListM.invoke(display, "Lore", 8);
+                            var sizeM = loreList.getClass().getMethod("size");
+                            var getStringM = loreList.getClass().getMethod("getString", int.class);
+                            int sz = (int)sizeM.invoke(loreList);
+                            for (int i=0;i<sz;i++) lore.add(stripFormatting((String)getStringM.invoke(loreList, i)));
+                        }
+                    }
+                }
+            } catch (Throwable e) { ZenithClient.LOGGER.debug("[GUIParser] lore read failed", e); }
+        }
+
+        // ---- ExtraAttributes.id ----
         try {
-            var tag = is.getTag();
-            if (tag != null && tag.contains("ExtraAttributes", 10)) {
-                var ea = tag.getCompound("ExtraAttributes");
-                if (ea.contains("id")) sbId = ea.getString("id");
+            Class<?> dcClass = Class.forName("net.minecraft.core.component.DataComponents");
+            Object customDataType = dcClass.getField("CUSTOM_DATA").get(null);
+            var getMethod = is.getClass().getMethod("get", Class.forName("net.minecraft.core.component.DataComponentType"));
+            Object customData = getMethod.invoke(is, customDataType);
+            if (customData != null) {
+                // CustomData → copyTag() → CompoundTag
+                var copyTagM = customData.getClass().getMethod("copyTag");
+                Object tag = copyTagM.invoke(customData);
+                if (tag != null) {
+                    var containsEa = tag.getClass().getMethod("contains", String.class);
+                    if ((boolean)containsEa.invoke(tag, "ExtraAttributes") || (boolean)tag.getClass().getMethod("contains", String.class, int.class).invoke(tag, "ExtraAttributes", 10)) {
+                        var getCompoundM = tag.getClass().getMethod("getCompound", String.class);
+                        Object ea = getCompoundM.invoke(tag, "ExtraAttributes");
+                        var containsId = ea.getClass().getMethod("contains", String.class);
+                        if ((boolean)containsId.invoke(ea, "id")) {
+                            var getStringM = ea.getClass().getMethod("getString", String.class);
+                            sbId = (String)getStringM.invoke(ea, "id");
+                        }
+                    }
+                }
             }
-        } catch (Exception ignored) {}
-        boolean ench = !is.getEnchantments().isEmpty();
-        boolean glint = is.hasFoil();
-        return new GUIItemStack(name, lore, is.getItem().toString(), sbId, is.getCount(), ench, glint);
+        } catch (Throwable ignored) {
+            try {
+                var getTagM = is.getClass().getMethod("getTag");
+                Object tag = getTagM.invoke(is);
+                if (tag != null) {
+                    var containsM = tag.getClass().getMethod("contains", String.class, int.class);
+                    if ((boolean)containsM.invoke(tag, "ExtraAttributes", 10)) {
+                        var getCompoundM = tag.getClass().getMethod("getCompound", String.class);
+                        Object ea = getCompoundM.invoke(tag, "ExtraAttributes");
+                        var containsM2 = ea.getClass().getMethod("contains", String.class);
+                        if ((boolean)containsM2.invoke(ea, "id")) {
+                            var getStringM = ea.getClass().getMethod("getString", String.class);
+                            sbId = (String)getStringM.invoke(ea, "id");
+                        }
+                    }
+                }
+            } catch (Throwable ignored2) {}
+        }
+
+        String itemId = "";
+        try { itemId = is.getItem().toString(); } catch (Throwable ignored) {}
+        return new GUIItemStack(name, lore, itemId, sbId, is.getCount(), ench, glint);
     }
 
     private static String stripFormatting(String s) {

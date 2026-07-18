@@ -72,6 +72,7 @@ public final class GuiEngine {
     public ZenithScreen getCurrentScreen() { return currentScreen; }
 
     public void toggleBrainView() { showBrainView = !showBrainView; }
+    public void setBrainView(boolean v) { showBrainView = v; }
     public boolean isBrainViewShown() { return showBrainView; }
 
     @SubscribeEvent

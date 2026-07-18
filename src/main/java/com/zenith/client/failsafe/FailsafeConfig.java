@@ -60,6 +60,16 @@ public class FailsafeConfig {
         return s != null ? s.enabled : true;
     }
 
+    public void setDetectorEnabled(FailsafeType type, boolean enabled) {
+        DetectorSetting s = detectors.get(type);
+        if (s == null) {
+            s = new DetectorSetting(enabled, null);
+            detectors.put(type, s);
+        } else {
+            s.enabled = enabled;
+        }
+    }
+
     public FailsafeStrictness severityFor(FailsafeType type) {
         DetectorSetting s = detectors.get(type);
         if (s != null && s.overrideSeverity != null) return s.overrideSeverity;
